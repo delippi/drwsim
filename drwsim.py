@@ -61,13 +61,13 @@ Description: This program is intended for the use in an observing system simulat
 
 def main():
 ######### USER DEFINED SETTINGS ################################################# 
-    factor=int(2)  # factor for upscaling the native resolution of model res.  #
-    tilts=np.array(np.arange(0.5,20,0.5)) # 0.5 to 19.5 by 0.5 increments     #
-#    tilts=np.array([0.5])
+    factor=int(10)  # factor for upscaling the native resolution of model res.  #
+#    tilts=np.array(np.arange(0.5,20,0.5)) # 0.5 to 19.5 by 0.5 increments     #
+    tilts=np.array([0.5])
                     # radar elevation angles to process.                        #
     mindbz=0.       # only compute drws where >= mindbz.                        #
     staid='KGRK'    # station id for debugging.                                 #
-    makefigs=False   # would you like to make figures? Helpful in debugging.     #
+    makefigs=True   # would you like to make figures? Helpful in debugging.     #
     grib=False      # is the model data in grib2 format?                        #
     netcdf=True     # is the model data in netcdf format?                       #
 ##### END OF USER DEFINED SETTINGS ##############################################
@@ -82,7 +82,6 @@ def main():
        # NEED TO GET TEMPERATURE AND SEA LEVEL PRESSURE FOR USE IN HEIGHT CALCULATION
        dbzgrbs=grbs.select(name='Derived radar reflectivity',typeOfLevel='heightAboveGround')
        dbz=dbzgrbs[0].values
-       #print(ugrbs[0].keys())
        pcoord=np.arange(10000,102500,2500) # probably only uses 1000mb - 
        gridspacing=dbzgrbs[0].DxInMetres/1000.
        lats,lons=dbzgrbs[0].latlons()
@@ -90,7 +89,6 @@ def main():
        yyyy=ugrbs[0].year; mm=ugrbs[0].month; dd=ugrbs[0].day; cyc=ugrbs[0].hour
  
     if(netcdf): # if the model data is in netcdf format...
-       CGREEN='\033[32m'; CRED='\033[31m'; CORANGE='\033[33m'; CEND='\033[0m'
        dir='/scratch4/NCEPDEV/meso/save/Donald.E.Lippi/data'
        nesteddata3d = os.path.join(dir,'nggps3d.nest02.nc')
        nesteddata2d = os.path.join(dir,'nggps2d.nest02.nc')
@@ -101,9 +99,6 @@ def main():
        fnd2d = Dataset(nesteddata2d,'r')
        print('Reading {:s}'.format(nestedgrid))
        fng   = Dataset(nestedgrid,'r')
-       #print(CGREEN+"3D variables:\n"+str(fnd3d.variables.keys())+"\n")
-       #print(CRED+"2D variables:\n"+str(fnd2d.variables.keys())+"\n")
-       #print(CORANGE+"Grid specs  :\n"+str(fng.variables.keys())+CEND+"\n")
        lons  = fng.variables['grid_lont'][:,:] # these are much different than grib
        lats  = fng.variables['grid_latt'][:,:]
        # Grab the cycledate
@@ -191,7 +186,6 @@ def main():
                         if(azm>=360): azm=azm-360
 #                        tilt=tilts[0]
                         # four thirds height and corrected tilt?
-                        pdb.set_trace()
                         tiltrad=deg2rad()*tilt
                         height=fourthirdsheight(dist,df.Height[rid],tiltrad)
                         # find nearest pressure v-coord and slice u,v,w
@@ -220,10 +214,8 @@ def main():
           del_anel=0.25
           # create a message with radial velocity data.
           idate=int(str(yyyymmdd)+str(fhr).zfill(2))
-          print("nummessages="+str(nummessages))
           if(nummessages==1): # we want to put all messages from all radars and all tilts in one bufr file.
-             bufr = ncepbufr.open(str(idate)+'_'+strip(df.ID[rid])+'_fv3.t'+str(fhr)+\
-                    'z.drw.bufr','w',table='l2rwbufr.table') # bufr file for reading.
+             bufr = ncepbufr.open(str(idate)+'_fv3.t'+str(fhr)+'z.drw.bufr','w',table='l2rwbufr.table') # bufr file for reading.
              bufrisopen=True
           subset=strip(l2rwdf.MNEMONIC[fhr+cyc])
           # set header
@@ -265,7 +257,7 @@ def main():
                 print("Done writing bufr file.")# for "+str(strip(df.ID[rid])))
              alpha=alpha+1
 
-          fignamestr=str(idate)+'_'+str(strip(df.ID[rid]))
+          fignamestr=str(idate)+'_'+str(strip(df.ID[rid]))+'_'+str(tilt)
           if(makefigs and len(tilts)==1):
              # Set up basemap
              print("Making figures for "+str(strip(df.ID[rid])))
@@ -288,7 +280,7 @@ def main():
              draw_radar_coverage(df,rid,m)
              cmap=drw_colormap()
              clevs=np.arange(-40,41,1)
-             cs = m.contourf(lon,lat,drw,clevs,cmap=cmap,latlon=True,extend='both')
+             cs = m.contourf(lon,lat,drw[tilt,:,:],clevs,cmap=cmap,latlon=True,extend='both')
              plt.title('drw')
              plt.savefig('./drw'+fignamestr+'.png',bbox_inches='tight')
              print("Fig 1 (drw) done")
@@ -296,11 +288,6 @@ def main():
              draw_radar_coverage(df,rid,m)
              cmap=ncepy.mrms_radarmap()
              clevs = [5.,10.,15.,20.,25.,30.,35.,40.,45.,50.,55.,60.,65.,70.,75.]
-             #clevs = [0,0.1,2,5,10,15,20,25,35,50,75,100,125,150,175]
-             #gemlist=ncepy.gem_color_list()
-             #pcplist=[0,23,22,21,20,19,10,17,16,15,14,29,28,24,25]
-             #pcolors=[gemlist[i] for i in pcplist]
-             #cmap = matplotlib.colors.ListedColormap(pcolors)
              cs = m.contourf(lon,lat,dbzsub,clevs,cmap=cmap,latlon=True,extend='both')
              #cs = m.contourf(lons,lats,dbz,clevs,cmap=cmap,latlon=True,extend='both')
              plt.title('dbz')
@@ -314,7 +301,7 @@ def main():
              theta,r = np.meshgrid(np.arange(0,thetas),np.arange(1,ngates+1)) # create meshgrid
              theta=deg2rad()*theta # convert theta from degrees to radians.
              cmap=drw_colormap()
-             mesh = ax.pcolormesh(theta,r,drwpol.T,shading='flat',cmap=cmap,vmin=-40,vmax=40) # plot the data.
+             mesh = ax.pcolormesh(theta,r,drwpol[tilt,:,:].T,shading='flat',cmap=cmap,vmin=-40,vmax=40) # plot the data.
              ax.grid(True)
              cbar = fig.colorbar(mesh,shrink=0.85,pad=0.10,ax=ax) # add a colorbar.
              plt.title('drw')
@@ -402,7 +389,6 @@ def find_nearest(array,value):
 def fourthirdsheight(thisrange,stahgt,thistiltr):
     #4/3rds height
     if(True): # I don't think this is what I want to do...
-       # corrected tilt - I want what I assign to be this. 
        fourthirds=4./3.
        half=0.5
        r2=2.0
@@ -418,7 +404,6 @@ def fourthirdsheight(thisrange,stahgt,thistiltr):
        epsh=(thisrange**2-ha**2)/(r8*aactual)
        h=ha-epsh
        thishgt=stahgt+h
-       # corrected tilt - should just be what I assign, right?
     return(thishgt)
 
 def haversine(lat1,lon1,lat2,lon2,ngates):
@@ -428,15 +413,15 @@ def haversine(lat1,lon1,lat2,lon2,ngates):
     a=(np.sin(dlat/2))**2 + np.cos(lat1) * np.cos(lat2) * (np.sin(dlon/2))**2
     c = 2 * (atan2( np.sqrt(a), np.sqrt(1-a) ))
     d = 6373000. * c
-    #dist=np.round(d/250.)*250. #round to nearest 250 for 250m gates.
     gate=100000./ngates
-    dist=np.round(d/gate)*gate #250.)*250. #round to nearest 250 for 250m gates.
+    dist=np.round(d/gate)*gate #round to nearest 250 for 250m gates.
     if(dist < 100000.):
        return(dist,True) 
     else: 
        return(dist,False)
 
 def height2nearestpressure(h,pcoord):
+    """This is a bad approximation, but just using it for now."""
     psfc=1013.25
     hft=h*3.28084 # convert height to feet.
     Pa=(1013.25-hft/30.)*100 # in lower atm, 1hPa drop off per 30ft., and convert to Pa 
