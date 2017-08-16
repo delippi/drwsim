@@ -70,10 +70,12 @@ def main():
     makefigs=True   # would you like to make figures? Helpful in debugging.     #
     grib=False      # is the model data in grib2 format?                        #
     netcdf=True     # is the model data in netcdf format?                       #
+    gribfile  ='/home/Donald.E.Lippi/obssim/namrr.t00z.conusnest.hiresf18.tm00.grib2'
+    netcdfpath='/scratch4/NCEPDEV/meso/save/Donald.E.Lippi/data'
 ##### END OF USER DEFINED SETTINGS ##############################################
     tic=time.clock()
     if(grib): # if the model data is in grib2 format...
-       grbs = pygrib.open('/home/Donald.E.Lippi/obssim/namrr.t00z.conusnest.hiresf18.tm00.grib2')
+       grbs = pygrib.open(gribfile)
        #print_grib_inv(grbs)
        # Get the needed fields.
        ugrbs  =grbs.select(name='U component of wind',typeOfLevel='isobaricInhPa')
@@ -89,7 +91,7 @@ def main():
        yyyy=ugrbs[0].year; mm=ugrbs[0].month; dd=ugrbs[0].day; cyc=ugrbs[0].hour
  
     if(netcdf): # if the model data is in netcdf format...
-       dir='/scratch4/NCEPDEV/meso/save/Donald.E.Lippi/data'
+       dir=netcdfpath
        nesteddata3d = os.path.join(dir,'nggps3d.nest02.nc')
        nesteddata2d = os.path.join(dir,'nggps2d.nest02.nc')
        nestedgrid   = os.path.join(dir,'grid_spec.nest02.nc')
