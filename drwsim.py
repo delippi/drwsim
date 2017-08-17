@@ -26,7 +26,7 @@ from progressbar import AnimatedMarker, Bar, BouncingBar, Counter, ETA, \
 import scipy.ndimage
 import sys
 import time
-import profile
+import cProfile
 """
 Author     : Donald Lippi
 Email      : donald.e.lippi@noaa.gov
@@ -62,6 +62,7 @@ Description: This program is intended for the use in an observing system simulat
 def main():
 ######### USER DEFINED SETTINGS ################################################# 
     factor=int(10)  # factor for upscaling the native resolution of model res.  #
+    resample=True   # if False, does no resample to get upscaled drws.          # 
 #    tilts=np.array(np.arange(0.5,20,0.5)) # 0.5 to 19.5 by 0.5 increments     #
     tilts=np.array([0.5])
                     # radar elevation angles to process.                        #
@@ -127,9 +128,20 @@ def main():
     # Read in the microsoft excel comma separated value (csv) file which contains radar database. 
     df=pd.read_csv('small_list_for_radar_sim_dev.csv')
     #print("number of messages = "+str(grbs.messages))
-   
+
     #radius=100; radius=radius+2.*gridspacing; dx=int(np.ceil(radius/gridspacing)); dy=dx
-    radius=100; radius=radius; dx=int(np.ceil(radius/gridspacing)); dy=dx
+    radius=100; dx=int(np.ceil(radius/gridspacing)); dy=dx
+    if(resample):
+       factor=factor
+       thetas=360                #360 azimuths
+       gate=250                  #drws are typically in 250 m gates.
+       ngates=radius*1000/gate   #100km/250m = 400 gates.
+    else:
+       factor=1                  #if we're not resampling, reset factor to 1.
+       thetas=360                #360 azimuths
+       gate=gridspacing*1000     #grid spacing in meters (3000-m)
+       ngates=np.ceil(radius*1000/gate)       
+
     toc=time.clock()
     print("step 1 took "+str(toc-tic)+" seconds")
 
@@ -141,14 +153,11 @@ def main():
           nummessages=nummessages+1
           tic=time.clock()
           # get coord of radar
-          x,y=ncepy.find_nearest_ij(lats,df.Lat[rid],lons,df.Lon[rid])
+          x,y=ncepy.find_nearest_ij(lats,df.Lat[rid],lons,df.Lon[rid]) # this is slow...
           # create subset for faster processing? 
           dbzsub,lat,lon=dbz[x-dx:x+dx,y-dy:y+dy],lats[x-dx:x+dx,y-dy:y+dy],lons[x-dx:x+dx,y-dy:y+dy]
           dbzsub,lat,lon=upscale(dbzsub,factor),upscale(lat,factor),upscale(lon,factor)
           drw=np.zeros(shape=(len(tilts),len(dbzsub),len(dbzsub))); drw.fill(-999)#; drw=np.ma.masked_array(drw,dbzsub.mask)
-          thetas=360          #360 azimuths
-          ngates=400          #ngates*250m = range (400*250m=100km) 
-          gate=100000/ngates  #typically gate=250m
           drwpol=np.zeros(shape=(len(tilts),thetas,ngates)); drwpol.fill(-999.)
           twodxfactor=2*dx*factor
           toc=time.clock()
@@ -243,12 +252,12 @@ def main():
                 hdr[11]= np.float(phi)  #ANAZ - ANTENNA AZIMUTH ANGLE
                 i=0                   # counter
                 r=0.                  # meters
-                rend=250.*ngates      # meters - 400 gates for 100km
+                rend=radius*1000      # meters - 400 gates for 100km
                 while(r < rend):
-                    obs[0,i] = r/250.            #DISTANCE (FROM ANTENNA TO GATE CENTER) IN UNITS OF 125M 
-                    obs[1,i] = drwpol[alpha,phi,r/250.]  #DOPPLER MEAN RADIAL VELOCITY 
+                    obs[0,i] = r/gate            #DISTANCE (FROM ANTENNA TO GATE CENTER) IN UNITS OF 125M 
+                    obs[1,i] = drwpol[alpha,phi,r/gate]  #DOPPLER MEAN RADIAL VELOCITY 
                     obs[2,i] = 1.                #DOPPLER VELOCITY SPECTRAL WIDTH
-                    r=r+250.; i=i+1
+                    r=r+gate; i=i+1
                 # encode radial velocity
                 bufr.write_subset(hdr,hdstr)
                 bufr.write_subset(obs,obstr,end=True) # end subset
@@ -427,8 +436,10 @@ def height2nearestpressure(h,pcoord):
     psfc=1013.25
     hft=h*3.28084 # convert height to feet.
     Pa=(1013.25-hft/30.)*100 # in lower atm, 1hPa drop off per 30ft., and convert to Pa 
-    nearest,idx=find_nearest(pcoord,Pa)
-    return(nearest,idx)
+    idx = (np.abs(pcoord-Pa)).argmin()
+    #nearest,idx=find_nearest(pcoord,Pa)
+    #return(nearest,idx)
+    return(pcoord[idx],idx)
 
 def make_colormap(seq):
     """Return a LinearSegmentedColormap
@@ -470,15 +481,13 @@ def roundTime(dt=None, roundTo=60):
 def strip(csv):
     return (" ".join(str(csv).split()))
 
-#def upscale(arr,factor,factor2):
 def upscale(arr,factor):
     out=scipy.ndimage.interpolation.zoom(input=arr, zoom=(factor), order = 3)
     return out
 
-############ THIS GOES AT THE VERY END ##########################
 if __name__ == "__main__":
     tic=time.clock()
-    main()
+    cProfile.run('main()','main.profile')
     toc=time.clock()
     time=toc-tic
     hrs=int(time/3600)
