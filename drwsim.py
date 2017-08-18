@@ -402,7 +402,7 @@ def find_nearest_ij_dl(lats,lat0,lons,lon0):
     """ This is faster than ncepy.find_nearest_ij by about 40 seconds and now
         takes less than 1 second to find the indicies"""
     gc=ncepy.gc_dist(lats,lons,lat0,lon0)
-    idx_i,idx_j=np.unravel_index(gc.argmin(), gc.shape)
+    idx_j,idx_i=np.unravel_index(gc.argmin(), gc.shape)
     return idx_j,idx_i
 
 def fourthirdsheight(thisrange,stahgt,thistiltr):
