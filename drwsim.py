@@ -61,7 +61,7 @@ Description: This program is intended for the use in an observing system simulat
 
 def main():
 ######### USER DEFINED SETTINGS ################################################# 
-    factor=int(10)  # factor for upscaling the native resolution of model res.  #
+    factor=int(2)  # factor for upscaling the native resolution of model res.  #
     resample=True   # if False, does no resample to get upscaled drws.          # 
 #    tilts=np.array(np.arange(0.5,20,0.5)) # 0.5 to 19.5 by 0.5 increments     #
     tilts=np.array([0.5])
@@ -153,7 +153,8 @@ def main():
           nummessages=nummessages+1
           tic=time.clock()
           # get coord of radar
-          x,y=ncepy.find_nearest_ij(lats,df.Lat[rid],lons,df.Lon[rid]) # this is slow...
+          #x,y=ncepy.find_nearest_ij(lats,df.Lat[rid],lons,df.Lon[rid]) # this is slow...
+          x,y=find_nearest_ij_dl(lats,df.Lat[rid],lons,df.Lon[rid]) # this is about 40 sec faster.
           # create subset for faster processing? 
           dbzsub,lat,lon=dbz[x-dx:x+dx,y-dy:y+dy],lats[x-dx:x+dx,y-dy:y+dy],lons[x-dx:x+dx,y-dy:y+dy]
           dbzsub,lat,lon=upscale(dbzsub,factor),upscale(lat,factor),upscale(lon,factor)
@@ -396,6 +397,13 @@ def drw_colormap():
 def find_nearest(array,value):
     idx = (np.abs(array-value)).argmin()
     return array[idx],idx
+
+def find_nearest_ij_dl(lats,lat0,lons,lon0):
+    """ This is faster than ncepy.find_nearest_ij by about 40 seconds and now
+        takes less than 1 second to find the indicies"""
+    gc=ncepy.gc_dist(lats,lons,lat0,lon0)
+    idx_i,idx_j=np.unravel_index(gc.argmin(), gc.shape)
+    return idx_j,idx_i
 
 def fourthirdsheight(thisrange,stahgt,thistiltr):
     #4/3rds height
