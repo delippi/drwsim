@@ -1,7 +1,7 @@
 #!/usr/bin/python
 import drawRadarCoverage
-import math
-from math import atan2,degrees
+#import math
+#from math import atan2,degrees
 import matplotlib
 #matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -13,7 +13,7 @@ import numpy as np
 from numpy import exp, abs, angle
 from netCDF4 import Dataset
 from netcdftime import utime
-import sys,os
+import os
 from datetime import datetime,timedelta
 import pandas as pd
 import pdb
@@ -24,7 +24,6 @@ from progressbar import AnimatedMarker, Bar, BouncingBar, Counter, ETA, \
                         ProgressBar, ReverseBar, RotatingMarker, \
                         SimpleProgress, Timer
 import scipy.ndimage
-import sys
 import time
 import cProfile
 """
@@ -61,7 +60,7 @@ Description: This program is intended for the use in an observing system simulat
 
 def main():
 ######### USER DEFINED SETTINGS ################################################# 
-    factor=int(2)  # factor for upscaling the native resolution of model res.  #
+    factor=int(10)  # factor for upscaling the native resolution of model res.  #
     resample=True   # if False, does no resample to get upscaled drws.          # 
 #    tilts=np.array(np.arange(0.5,20,0.5)) # 0.5 to 19.5 by 0.5 increments     #
     tilts=np.array([0.5])
@@ -117,7 +116,7 @@ def main():
        vnc    = fnd3d.variables['vcomp']
        wnc    = fnd3d.variables['w']
        pcoord = fnd3d.variables['pfull'] # 63 levels
-       #dbznc= fnd2d.valurable[''] # Don't see this in the fv3 output yet.
+       #dbznc = fnd2d.variables[''] # Don't see this in the fv3 output yet.
        # Let's approximate dbz for now.
        pratesfc=fnd2d.variables['PRATEsfc'] # surface precipitation rate
        # https://vlab.ncep.noaa.gov/web/wdtd/-/surface-precipitation-rate-spr-?selectedFolder=668041
@@ -186,7 +185,7 @@ def main():
                 for b in xrange(2*dy*factor):
                    if(dbzsub[b,a] >= mindbz): # if dbz exists.
                       # check if obs are within range (100-km); get distance from radar to compute height.
-                      dist,iswithinrange=haversine(df.Lat[rid],df.Lon[rid],lat[b,a],lon[b,a],ngates)
+                      dist,iswithinrange=check_iswithinrange(df.Lat[rid],df.Lon[rid],lat[b,a],lon[b,a],ngates)
                       dist250=int(np.round(dist/gate)) #dist250=int(np.round(dist/250.))
                       # beam width at dist.
                       beamwidth=1.
@@ -332,7 +331,7 @@ def main():
 # 4.  drw_colormap                                                            #
 # 5.  find_nearest                                                            #
 # 6.  fourthirdsheight                                                        #
-# 7.  haversine                                                               #
+# 7.  check_iswithinrange                                                     #
 # 8.  height2nearestpressure                                                  #
 # 9.  make_colormap                                                           #
 #10.  print_grib_inv                                                          #
@@ -345,17 +344,17 @@ def main():
 def calculate_initial_compass_bearing(pointA, pointB):
     if (type(pointA) != tuple) or (type(pointB) != tuple):
         raise TypeError("Only tuples are supported as arguments")
-    lat1 = math.radians(pointA[0])
-    lat2 = math.radians(pointB[0])
-    diffLong = math.radians(pointB[1] - pointA[1])
-    x = math.sin(diffLong) * math.cos(lat2)
-    y = math.cos(lat1) * math.sin(lat2) - (math.sin(lat1)
-            * math.cos(lat2) * math.cos(diffLong))
-    initial_bearing = math.atan2(x, y)
+    lat1 = np.radians(pointA[0])
+    lat2 = np.radians(pointB[0])
+    diffLong = np.radians(pointB[1] - pointA[1])
+    x = np.sin(diffLong) * np.cos(lat2)
+    y = np.cos(lat1) * np.sin(lat2) - (np.sin(lat1)
+            * np.cos(lat2) * np.cos(diffLong))
+    initial_bearing = np.arctan2(x, y)
     # Now we have the initial bearing but math.atan2 return values
     # from -180 to + 180 which is not what we want for a compass bearing
     # The solution is to normalize the initial bearing as shown below
-    initial_bearing = math.degrees(initial_bearing)
+    initial_bearing = np.degrees(initial_bearing)
     compass_bearing = (initial_bearing + 360) % 360
     return compass_bearing
 
@@ -418,13 +417,8 @@ def fourthirdsheight(thisrange,stahgt,thistiltr):
        thishgt=stahgt+h
     return(thishgt)
 
-def haversine(lat1,lon1,lat2,lon2,ngates):
-    lat1=np.radians(lat1); lon1=np.radians(lon1)
-    lat2=np.radians(lat2); lon2=np.radians(lon2)
-    dlon=(lon2-lon1);   dlat=(lat2-lat1)
-    a=(np.sin(dlat/2))**2 + np.cos(lat1) * np.cos(lat2) * (np.sin(dlon/2))**2
-    c = 2 * (atan2( np.sqrt(a), np.sqrt(1-a) ))
-    d = 6373000. * c
+def check_iswithinrange(lat1,lon1,lat2,lon2,ngates):
+    d = ncepy.gc_dist(lat1,lon1,lat2,lon2)
     gate=100000./ngates
     dist=np.round(d/gate)*gate #round to nearest 250 for 250m gates.
     if(dist < 100000.):
