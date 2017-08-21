@@ -55,7 +55,7 @@ Description: This program is intended for the use in an observing system simulat
 #4. Improve vertical interpolation. Right now I'm getting some stratified looking winds.
 #DONE 5. Add a loop over tilts. Process 0.5-19.5 for each call to radar. 
 #6. Need to use dist along beam as dist from radar rather than horizontal dist.
-#7. Put all bufr messages from all radars and all tilts in same bufr file.
+#DONE 7. Put all bufr messages from all radars and all tilts in same bufr file.
 #========================================================================================
 
 
@@ -124,7 +124,6 @@ def main():
        dbz=pratesfc[hh,:,:]  # Z = 300*R**1.4
        gridspacing=3. # I don't know how to get this from the netcdf file yet...
 
-    #rads=tilts*deg2rad() 
     # Read in the microsoft excel comma separated value (csv) file which contains radar database. 
     df=pd.read_csv('small_list_for_radar_sim_dev.csv')
     #print("number of messages = "+str(grbs.messages))
@@ -198,12 +197,12 @@ def main():
                         if(azm>=360): azm=azm-360
 #                        tilt=tilts[0]
                         # four thirds height and corrected tilt?
-                        tiltrad=deg2rad()*tilt
+                        tiltrad=np.radians(tilt)
                         height=fourthirdsheight(dist,df.Height[rid],tiltrad)
                         # find nearest pressure v-coord and slice u,v,w
                         nearest,idx=height2nearestpressure(height,pcoord)      
                         u=usub[idx]; v=vsub[idx]; w=wsub[idx]
-                        azmrad=deg2rad()*azm
+                        azmrad=np.radians(azm)
                         costilt=np.cos(tiltrad)
                         cosazm=np.cos(azmrad)
                         sintilt=np.sin(tiltrad)
@@ -311,7 +310,7 @@ def main():
              ax.set_theta_zero_location("N") # set theta zero location to point North.
              ax.set_theta_direction(-1) # set theta to increase clockwise (-1).
              theta,r = np.meshgrid(np.arange(0,thetas),np.arange(1,ngates+1)) # create meshgrid
-             theta=deg2rad()*theta # convert theta from degrees to radians.
+             theta=np.radians(theta) # convert theta from degrees to radians.
              cmap=drw_colormap()
              mesh = ax.pcolormesh(theta,r,drwpol[tilt,:,:].T,shading='flat',cmap=cmap,vmin=-40,vmax=40) # plot the data.
              ax.grid(True)
@@ -329,7 +328,6 @@ def main():
 ###############################################################################
 # Below are functions used by the main program:                               #
 # 1.  calculate_initial_compass_bearing                                       #
-# 2.  deg2rad                                                                 #
 # 3.  draw_radar_coverage                                                     #
 # 4.  drw_colormap                                                            #
 # 5.  find_nearest                                                            #
@@ -360,11 +358,6 @@ def calculate_initial_compass_bearing(pointA, pointB):
     initial_bearing = math.degrees(initial_bearing)
     compass_bearing = (initial_bearing + 360) % 360
     return compass_bearing
-
-#def deg2rad(theta):
-#    return(theta*3.141592/180.)
-def deg2rad():
-    return(3.141592/180.)
 
 def draw_radar_coverage(df,i,m):
     color='black'; radius=100
@@ -426,8 +419,8 @@ def fourthirdsheight(thisrange,stahgt,thistiltr):
     return(thishgt)
 
 def haversine(lat1,lon1,lat2,lon2,ngates):
-    lat1=deg2rad()*lat1; lon1=deg2rad()*lon1
-    lat2=deg2rad()*lat2; lon2=deg2rad()*lon2
+    lat1=np.radians(lat1); lon1=np.radians(lon1)
+    lat2=np.radians(lat2); lon2=np.radians(lon2)
     dlon=(lon2-lon1);   dlat=(lat2-lat1)
     a=(np.sin(dlat/2))**2 + np.cos(lat1) * np.cos(lat2) * (np.sin(dlon/2))**2
     c = 2 * (atan2( np.sqrt(a), np.sqrt(1-a) ))
