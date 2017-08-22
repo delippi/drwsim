@@ -101,6 +101,7 @@ def main():
        fnd2d = Dataset(nesteddata2d,'r')
        print('Reading {:s}'.format(nestedgrid))
        fng   = Dataset(nestedgrid,'r')
+       #print_nc_variables(fnd3d,fnd2d,fng); exit()
        lons  = fng.variables['grid_lont'][:,:] # these are much different than grib
        lats  = fng.variables['grid_latt'][:,:]
        # Grab the cycledate
@@ -151,8 +152,8 @@ def main():
           nummessages=nummessages+1
           tic=time.clock()
           # get coord of radar
-          #x,y=ncepy.find_nearest_ij(lats,df.Lat[rid],lons,df.Lon[rid]) # this is slow...
-          x,y=find_nearest_ij_dl(lats,df.Lat[rid],lons,df.Lon[rid]) # this is about 40 sec faster.
+          x,y=ncepy.find_nearest_ij(lats,df.Lat[rid],lons,df.Lon[rid]) # this is slow...
+          #x,y=find_nearest_ij_dl(lats,df.Lat[rid],lons,df.Lon[rid]) # this is about 40 sec faster.
           # create subset for faster processing? 
           dbzsub,lat,lon=dbz[x-dx:x+dx,y-dy:y+dy],lats[x-dx:x+dx,y-dy:y+dy],lons[x-dx:x+dx,y-dy:y+dy]
           dbzsub,lat,lon=upscale(dbzsub,factor),upscale(lat,factor),upscale(lon,factor)
@@ -390,13 +391,6 @@ def find_nearest(array,value):
     idx = (np.abs(array-value)).argmin()
     return array[idx],idx
 
-def find_nearest_ij_dl(lats,lat0,lons,lon0):
-    """ This is faster than ncepy.find_nearest_ij by about 40 seconds and now
-        takes less than 1 second to find the indicies"""
-    gc=ncepy.gc_dist(lats,lons,lat0,lon0)
-    idx_j,idx_i=np.unravel_index(gc.argmin(), gc.shape)
-    return idx_j,idx_i
-
 def fourthirdsheight(thisrange,stahgt,thistiltr):
     #4/3rds height
     if(True): # I don't think this is what I want to do...
@@ -427,13 +421,15 @@ def check_iswithinrange(lat1,lon1,lat2,lon2,ngates):
        return(dist,False)
 
 def height2nearestpressure(h,pcoord):
-    """This is a bad approximation, but just using it for now."""
-    psfc=1013.25
-    hft=h*3.28084 # convert height to feet.
-    Pa=(1013.25-hft/30.)*100 # in lower atm, 1hPa drop off per 30ft., and convert to Pa 
-    idx = (np.abs(pcoord-Pa)).argmin()
-    #nearest,idx=find_nearest(pcoord,Pa)
-    #return(nearest,idx)
+    # Hypsometric Eq. h = ((p0/p)^(1/5.257)-1)*(T+273.15)/0.0065
+    #                 p = p0/(  (h*0.0065)/(T+273.15) + 1  )**5.257
+    psfc=pcoord[-1]
+    T=15
+    ptop = psfc/((((h*0.0065)/(T+273.15)) + 1)**5.257)
+    idx = (np.abs(pcoord-ptop)).argmin()
+    #hft=h*3.28084 # convert height to feet.
+    #Pa=(1013.25-hft/30.)*100 # in lower atm, 1hPa drop off per 30ft., and convert to Pa 
+    #idx = (np.abs(pcoord-Pa)).argmin()
     return(pcoord[idx],idx)
 
 def make_colormap(seq):
@@ -460,6 +456,12 @@ def print_grib_inv(grbs):
         #print(grb)
         f.write(str(grb)+"\n")
     f.close()
+
+def print_nc_variables(fnd3d,fnd2d,fng):
+    CGREEN='\033[32m'; CRED='\033[31m'; CORANGE='\033[33m'; CEND='\033[0m'
+    print(CGREEN+"3D variables:\n"+str(fnd3d.variables.keys())+"\n")
+    print(CRED+"2D variables:\n"+str(fnd2d.variables.keys())+"\n")
+    print(CORANGE+"Grid specs  :\n"+str(fng.variables.keys())+CEND+"\n")
 
 def roundTime(dt=None, roundTo=60):
    """Round a datetime object to any time laps in seconds
