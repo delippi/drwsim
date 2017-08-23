@@ -152,9 +152,8 @@ def main():
           nummessages=nummessages+1
           tic=time.clock()
           # get coord of radar
-          x,y=ncepy.find_nearest_ij(lats,df.Lat[rid],lons,df.Lon[rid]) # this is slow...
-          #x,y=find_nearest_ij_dl(lats,df.Lat[rid],lons,df.Lon[rid]) # this is about 40 sec faster.
-          # create subset for faster processing? 
+          x,y=ncepy.find_nearest_ij(lats,df.Lat[rid],lons,df.Lon[rid])
+          # create subset for faster processing. 
           dbzsub,lat,lon=dbz[x-dx:x+dx,y-dy:y+dy],lats[x-dx:x+dx,y-dy:y+dy],lons[x-dx:x+dx,y-dy:y+dy]
           dbzsub,lat,lon=upscale(dbzsub,factor),upscale(lat,factor),upscale(lon,factor)
           drw=np.zeros(shape=(len(tilts),len(dbzsub),len(dbzsub))); drw.fill(-999)#; drw=np.ma.masked_array(drw,dbzsub.mask)
@@ -327,18 +326,18 @@ def main():
     
 ###############################################################################
 # Below are functions used by the main program:                               #
-# 1.  calculate_initial_compass_bearing                                       #
-# 3.  draw_radar_coverage                                                     #
-# 4.  drw_colormap                                                            #
-# 5.  find_nearest                                                            #
-# 6.  fourthirdsheight                                                        #
-# 7.  check_iswithinrange                                                     #
-# 8.  height2nearestpressure                                                  #
-# 9.  make_colormap                                                           #
-#10.  print_grib_inv                                                          #
-#11.  roundTime                                                               #
-#12.  strip                                                                   #
-#13.  upscale                                                                 # 
+#     calculate_initial_compass_bearing                                       #
+#     check_iswithinrange                                                     #
+#     draw_radar_coverage                                                     #
+#     drw_colormap                                                            #
+#     find_nearest                                                            #
+#     fourthirdsheight                                                        #
+#     height2nearestpressure                                                  #
+#     make_colormap                                                           #
+#     print_grib_inv                                                          #
+#     roundTime                                                               #
+#     strip                                                                   #
+#     upscale                                                                 # 
 ###############################################################################
 
     #reference: https://gist.github.com/jeromer/2005586
@@ -358,6 +357,15 @@ def calculate_initial_compass_bearing(pointA, pointB):
     initial_bearing = np.degrees(initial_bearing)
     compass_bearing = (initial_bearing + 360) % 360
     return compass_bearing
+
+def check_iswithinrange(lat1,lon1,lat2,lon2,ngates):
+    d = ncepy.gc_dist(lat1,lon1,lat2,lon2)
+    gate=100000./ngates
+    dist=np.round(d/gate)*gate #round to nearest 250 for 250m gates.
+    if(dist < 100000.):
+       return(dist,True)
+    else:
+       return(dist,False)
 
 def draw_radar_coverage(df,i,m):
     color='black'; radius=100
@@ -410,15 +418,6 @@ def fourthirdsheight(thisrange,stahgt,thistiltr):
        h=ha-epsh
        thishgt=stahgt+h
     return(thishgt)
-
-def check_iswithinrange(lat1,lon1,lat2,lon2,ngates):
-    d = ncepy.gc_dist(lat1,lon1,lat2,lon2)
-    gate=100000./ngates
-    dist=np.round(d/gate)*gate #round to nearest 250 for 250m gates.
-    if(dist < 100000.):
-       return(dist,True) 
-    else: 
-       return(dist,False)
 
 def height2nearestpressure(h,pcoord):
     # Hypsometric Eq. h = ((p0/p)^(1/5.257)-1)*(T+273.15)/0.0065
