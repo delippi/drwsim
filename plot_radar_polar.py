@@ -33,7 +33,8 @@ def make_colormap(seq):
 
 def main():
 ######### USER DEFINED SETTINGS #################################################
-    OBS_FILE='/home/Donald.E.Lippi/obssim/2017080712_fv3.t12z.drw.bufr'         #
+    #OBS_FILE='/home/Donald.E.Lippi/obssim/2017080712_fv3.t12z.drw.bufr'         #
+    OBS_FILE='/scratch4/NCEPDEV/meso/save/Donald.E.Lippi/PhD-globalOSSE/obssim/2017080712_fv3.t12z.drw.bufr'
     date=2017080712      # date and time of the observations                    #
     STAID='KGRK'         # station id you want to plot.                         #
     anel0=0.5            # tilt angle you want to plot.                         #
