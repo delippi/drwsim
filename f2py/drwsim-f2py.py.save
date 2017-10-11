@@ -30,6 +30,7 @@ from progressbar import AnimatedMarker, Bar, BouncingBar, Counter, ETA, \
 import scipy.ndimage
 import time
 import cProfile
+import fmods
 """
 Author     : Donald Lippi
 Email      : donald.e.lippi@noaa.gov
@@ -97,8 +98,8 @@ def main():
     netcdf=True     # is the model data in netcdf format?                       #
     netcdfpath='/scratch4/NCEPDEV/meso/save/Donald.E.Lippi/data'                #
     maxobrange=100000                                                           #
-    azimuths=3#360                    #360 azimuths                               #
-    ithin=120                         #radar data is very hires 1=full res        #
+    azimuths=1#360                    #360 azimuths                               #
+    ithin=60                         #radar data is very hires 1=full res        #
     gatespc=250*ithin               #drws are typically in 250 m gates.         #
     gates=maxobrange/gatespc        #100km/250m = 400 gates.                    #
     #grib=False      # is the model data in grib2 format?                       #
@@ -108,7 +109,7 @@ def main():
     tic1=timer()
 
     # Read in the microsoft excel comma separated value (csv) file which contains radar database. 
-    df=pd.read_csv('small_list_for_radar_sim_dev.csv')
+    df=pd.read_csv('./fix/small_list_for_radar_sim_dev.csv')
 
     if(netcdf): # if the model data is in netcdf format...
        dir=netcdfpath
@@ -214,7 +215,7 @@ def main():
                       rlonloc=rad_per_meter*gamma*np.cos(thisazimuthr)
                       rlatloc=rad_per_meter*gamma*np.sin(thisazimuthr)
 
-                      rlonglob,rlatglob=invtllv(rlonloc,rlatloc,rlon0,clat0,slat0)
+                      rlonglob,rlatglob=gsisub.invtllv(rlonloc,rlatloc,rlon0,clat0,slat0)
 
                       #-compute ll of grid centers. This loop stays outside of tll2xy for efficiency.
                       midlats=np.zeros(shape=(len(lats[:,0])-1,len(lats[0,:])-1))
@@ -286,13 +287,13 @@ def main():
                       drwpol[itilt,iazm,igate] = ugesin*cosazm_costilt + vgesin*sinazm_costilt + wgesin*sintilt
 
                       if(dpres < zero or dpres > nsig): exit("something went wrong at "+str(framinfo.lineno))
-                      
+          exit()            
           #------------BUFFERIZE---------------------------------------------------!
           # Mnemonics for getting data from the bufr file.
           print("Writing bufr file for "+str(strip(df.ID[rid])))
           hdstr='SSTN CLON CLAT SELV ANEL YEAR MNTH DAYS HOUR MINU QCRW ANAZ'
           obstr='DIST125M DMVR DVSW'                     #NL2RW--level 2 radial wind.
-          l2rwdf=pd.read_csv('l2rwbufr.table.csv')
+          l2rwdf=pd.read_csv('./fix/l2rwbufr.table.csv')
           date=yyyymmdd
           cyc=00
           fhr=fhr
@@ -301,7 +302,7 @@ def main():
           # create a message with radial velocity data.
           idate=int(str(yyyymmdd)+str(fhr).zfill(2))
           if(count==1): # Only open new file at the sign of first message.
-             bufr = ncepbufr.open(str(idate)+'_fv3.t'+str(fhr)+'z.drw.bufr','w',table='l2rwbufr.table') # bufr file for reading.
+             bufr = ncepbufr.open(str(idate)+'_fv3.t'+str(fhr)+'z.drw.bufr','w',table='./fix/l2rwbufr.table') # bufr file for reading.
              bufrisopen=True
           subset=strip(l2rwdf.MNEMONIC[fhr+cyc])
           # set header
@@ -377,12 +378,6 @@ def isrchf(nx1,x,y,flg):
     return(isrchf)
 
 def tintrp3(fin,dxin,dyin,dzin): #tintrp3(f,gout,dxin,dyin,dzin)
-#!   input argument list:
-#!     f        - input interpolator
-#!     dx,dy,dz - input x,y,z-coords of interpolation points (grid units)
-#!     n        - number of interpolatees
-#!   output argument list:
-#!     g        - output interpolatees
     f=fin; nlevs,nlat,nlon=np.shape(f); dx=dxin; dy=dyin; dz=dzin; g=np.zeros(shape=(1)); n=1
     for i in range(n):
         ix1=int(dx)
@@ -410,17 +405,6 @@ def tintrp3(fin,dxin,dyin,dzin): #tintrp3(f,gout,dxin,dyin,dzin)
     return(g)
 
 def tintrp2a(fin,dxin,dyin,nlevs):#hges=tintrp2a(geop_hgtl,dlat,dlon,nsig)
-#   input argument list:
-#     f        - input interpolator
-#     dx,dy    - input x,y,z-coords of interpolation points (grid units)
-#     obstime  - time to interpolate to
-#     gridtime - grid guess times to interpolate from
-#     n        - number of interpolatees
-#     nlevs    - number of vertical levels over which to perform the 
-#                2-d intrpolation 
-#   output argument list:
-#     g        - output interpolatees
-#    print("Check tintrp2a for correctness...")
     f=fin; nlevs,nlat,nlon=np.shape(f); dx=dxin; dy=dyin; g=np.zeros(shape=(nlevs,1)); n=1
     istart=0; jstart=0; lon1=nlon
     for i in range(n):
@@ -432,16 +416,6 @@ def tintrp2a(fin,dxin,dyin,nlevs):#hges=tintrp2a(geop_hgtl,dlat,dlon,nsig)
         iyp=iy1+1
         delxp=one-delx
         delyp=one-dely
-    #ix=ix1+1#-istart+2
-    #iy=iy1+1#-jstart+2
-    #if(iy<1): #Double check
-    #   iy1=iy1+nlon
-    #   iy=iy1+1#-jstart+2
-    #if(iy>lon1+1): #Double check
-    #   iy1=iy1-nlon
-    #   iy=iy1+1#-jstart+2 
-    #if(ix1==nlat): #Double check
-    #   ixp=ix
         ix=ix1
         iy=iy1
         for k in range(nlevs):
@@ -450,7 +424,6 @@ def tintrp2a(fin,dxin,dyin,nlevs):#hges=tintrp2a(geop_hgtl,dlat,dlon,nsig)
     return g
 
 def tintrp2a_single_level(fin,dxin,dyin):
-#    print("tintrp2a_single_level: Make sure you get gues_z from nggps2d at some point.")
     f=fin; nlat,nlon=np.shape(f); nlevs=1; dx=dxin; dy=dyin; g=np.zeros(shape=(nlat,nlon)); n=1
     ix1=int(dx)
     iy1=int(dy)
@@ -467,7 +440,6 @@ def tintrp2a_single_level(fin,dxin,dyin):
 
 
 def tll2xy(lats,lons,midlats,midlons,lat,lon):
-#  print("Make sure to check tll2xy for correctness...")
   diag=False
   gcc=ncepy.gc_dist(midlats,midlons,lat,lon)
   # index of grid centers closet to radar.
@@ -495,67 +467,7 @@ def tll2xy(lats,lons,midlats,midlons,lat,lon):
   return(idxx,idxy)#,dlat,dlon)
 
 
-def tintrp31(f,dx,dy,dz,obstime):
-    nlat,nlon,nsig=1440,1728,63 
-    istart=0
-    jstart=0
-    delt=obstime-obstime
-    #input argument list:
-    #  f        - input interpolator
-    #  dx,dy,dz - input x,y,z-coords of interpolation points (grid units)
-    #  obstime  - time to interpolate to
-    #  gridtime - grid guess times to interpolate from
-    #output argument list
-    #  g        - output interpolatees
-    ix1=int(dx)
-    iy1=int(dy)
-    iz=int(dz)
-    ix1=max(0,min(ix1,nlat-1)); iz=max(0,min(iz,nsig-1))
-    delx=dx-float(ix1)
-    dely=dy-float(iy1)
-    delz=dz-float(iz)
-    delx=max(zero,min(delx,one)); delz=max(zero,min(delz,one))
-    ix=ix1-istart+2
-    iy=iy1-jstart+2
-    if(iy<1):
-       iy1=iy1+nlon
-       iy=iy1-jstart+2
-    ixp=ix+1; iyp=iy+1
-    if(ix1==nlat):
-       ixp=ix
-    deltp=one-delt
-    delxp=one-delx; delyp=one-dely
-    iz=int(dz)
-    iz=max(0,min(iz,nsig-1))
-    delz=dz-float(iz)
-    delz=max(zero,min(delz,one))
-    izp=min(iz+1,nsig)
-    delzp=one-delz
-
-    print(iz,iy,ix)
-    g =  (f[itime ,iz ,iy ,ix ]*delxp*delyp*delzp
-        + f[itime ,iz ,iy ,ixp]*delx *delyp*delzp
-        + f[itime ,iz ,iyp,ix ]*delxp*dely *delzp
-        + f[itime ,iz ,iyp,ixp]*delx *dely *delzp
-        + f[itime ,izp,iy ,ix ]*delxp*delyp*delz
-        + f[itime ,izp,iy ,ixp]*delx *delyp*delz
-        + f[itime ,izp,iyp,ix ]*delxp*dely *delz
-        + f[itime ,izp,iyp,ixp]*delx *dely *delz)
-    return(g)
-
-
 def invtllv(ALM,APH,TLMO,CTPH0,STPH0):
-#   input arg list:
-#     alm  -- input eart longitude
-#     aph  -- input earth latitude
-#     tlmo -- input earth longitude of rotated grid origin (radrees)
-#     ctph0-- cos(earth lat of rotated grid origin)
-#     stph0-- sin(earth lat of rotated grid origin) 
-#
-#   output arg list
-#     tlm  -- rotated grid longitude
-#     tph  -- rotated grid latitude
-
     RELM=ALM
     SRLM=np.sin(RELM)
     CRLM=np.cos(RELM)
@@ -569,19 +481,6 @@ def invtllv(ALM,APH,TLMO,CTPH0,STPH0):
     return(TLM,TPH)
 
  
-def get_lat_lon(azm,thistiltr,gate,radar_lat,radar_lon):
-    x=gate*250.*np.cos(thistiltr)
-    return(dlat,dlon)
-
-def get_ijk(lat,lon,height):
-    return 0
-
-def model_to_ob(rw_operator):
-    return 0
-
-def bufrize(azm,radarid,gate,elev,tilt):
-    return 0
-
 
 # HELPER FUNCTIONS ##############################
 

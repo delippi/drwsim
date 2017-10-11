@@ -34,11 +34,13 @@ def make_colormap(seq):
 def main():
 ######### USER DEFINED SETTINGS #################################################
     #OBS_FILE='/home/Donald.E.Lippi/obssim/2017080712_fv3.t12z.drw.bufr'         #
-    OBS_FILE='/scratch4/NCEPDEV/meso/save/Donald.E.Lippi/PhD-globalOSSE/obssim/2017080712_fv3.t12z.drw.bufr'
+    OBS_FILE='../out/2017080712_fv3.t12z.drw.bufr'
     date=2017080712      # date and time of the observations                    #
     STAID='KGRK'         # station id you want to plot.                         #
     anel0=0.5            # tilt angle you want to plot.                         #
     field='RADIAL WIND'  # you can plot 'RADIAL WIND' or 'REFLECTIVITY'         #
+    ithin=16
+    gatespc=250.*ithin
 ##### END OF USER DEFINED SETTINGS ##############################################
     tic = time.clock()
     # get message type from date.
@@ -61,7 +63,7 @@ def main():
     #2. READ PREPBUFR FILE.
     b='false' # used for breaking the loop.
     bufr = ncepbufr.open(OBS_FILE) # bufr file for reading.
-    bufr.dump_table('l2rwbufr.table') # dump table to file.
+    bufr.dump_table('../out/l2rwbufr.table') # dump table to file.
     while bufr.advance() == 0: # loop over messages.
         print(bufr.msg_counter, bufr.msg_type, bufr.msg_date)
         if(bufr.msg_type == message_type):
@@ -85,14 +87,17 @@ def main():
                         #dist125m.append(obs[0]) # distances in units of 125 m
                         #radii.append(obs[0]*125) #distances in units of 1 m
                         #radii.append(obs[0]) #distances in units of 1 m
-                        radii.append(obs[0]*250) #distances in units of 1 m
+                        radii.append(obs[0]*gatespc) #distances in units of 1 m
                         ymdhm.append(int(hdr[9]))
                         #print(ymdhm)
                         if(anaz[-1] >= 360.0): # we would like to break the loop now.
                             b='true'
         if(b == 'true'): break # stop reading after all anaz's read.
     bufr.close()
-    MM=str(ymdhm[-1])
+    try:
+       MM=str(ymdhm[-1])
+    except IndexError: 
+       exit("You have an empty bufr file...")
     print(np.min(anel),np.max(anel))
     print(np.min(ymdhm),np.max(ymdhm))
     toc = time.clock() # check how long reading the data in took.
@@ -108,7 +113,7 @@ def main():
     ax = fig.add_subplot(111,polar=True) # we would like it to be a polar plot.
     ax.set_theta_zero_location("N") # set theta zero location to point North.
     ax.set_theta_direction(-1) # set theta to increase clockwise (-1).
-    theta,r = np.meshgrid(anaz,np.arange(minRadii,maxRadii,250.)) # create meshgrid
+    theta,r = np.meshgrid(anaz,np.arange(minRadii,maxRadii,gatespc)) # create meshgrid
     theta=np.radians(theta) # convert theta from degrees to radians.
     rw = np.zeros(shape=(len(theta),len(r[0]))) # initialize the polar plot with all 0's.
     rw.fill(-999) # change all values to missing data (-999).
@@ -168,7 +173,7 @@ def main():
               +'  Date: '+str(date)+MM.zfill(2),fontsize=15,y=1.12) # add a useful title.
     ax.grid(True)
     plt.show() # make the plot.
-    plt.savefig('./'+STAID+'_'+str(anel[0])+'_'+str(date)+MM.zfill(2)+'.png'\
+    plt.savefig('../figs/'+STAID+'_'+str(anel[0])+'_'+str(date)+MM.zfill(2)+'.png'\
                 ,bbox_inches='tight') # save figure.
 
     #7. CALCULATE SOME STATS

@@ -1,0 +1,22 @@
+ARRAYS
+lats    - (1440 x 1728) array of latitude values for grid points.
+lons    - (1440 x 1728) array of longitude values for grid points.
+midlats - (1439 x 1727) array of latitude values for grid centers.
+midlons - (1439 x 1727) array of longitude values for gird centers.
+gues_u  - 3d u-wind field
+gues_v  - 3d v-wind field
+gues_w  - 3d w-wind field
+gues_dbz- 2d reflectivity field
+pcoord  - 3d pressure levels
+
+
+
+SCALARS
+
+
+
+FILES
+nesteddata3d - file containing 3D fields from native FV3 grid: u, v, and w.
+nesteddata2d - file containing 2D fields from native FV3 grid: dbz
+nestedgrid   - file containing grid specifications for FV3 native grid.
+

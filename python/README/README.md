@@ -1,0 +1,4 @@
+# py-drwsim
+This program is intended for the use in an atmospheric observing system simulation experiment (OSSE). This program simulates Doppler radar radial velocities (DRWs for short) given model output (either grib2 or netcdf) and a radar database provided in comma separated value forat (csv). This program created DRWs only where dBZ exists and writes all observations at a single time from all radars and all elevation angles to a single bufr file mimicking how DRWs observations are actually stored and processed by the GSI. This program can also upscale the resolution of the model data in order to create full resolution DRW data (i.e., 360-degrees, 250-meter gates out to 100-km range).
+
+Everything needed to run this should be included except for the grib2/netcdf model output and python module dependencies.
