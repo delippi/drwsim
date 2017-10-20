@@ -1,0 +1,48 @@
+&drw
+iadate(1)=2017,   !yyyy
+iadate(2)=08,     !mm
+iadate(3)=07,     !dd
+iadate(4)=12,     !hh (utc)
+iadate(5)=00,     !minmin (2 digit minutes)
+radartwindow=2.5, !minutes
+mintilt=0.5,      ! Only  use tilt angles (deg) >= this number
+maxtilt=20.0,     ! Do no use tilt angles (deg) <= this number
+ithin=10,          ! Gate thinning frequency for RW obs (must be >=1).
+maxobrange=100000,
+minobrange=0,
+staid='KGRK',
+gatespc=250.,
+diagprint=.true.,
+diagverbose=2,
+datapath='/scratch4/NCEPDEV/meso/save/Donald.E.Lippi/data/'
+nesteddata3d='nggps3d.nest02.nc',
+nesteddata2d='nggps2d.nest02.nc',
+nestedgrid='grid_spec.nest02.nc',
+radarcsv='radar_sim_dev.csv',
+tilts(1)=0.5,
+tilts(2)=1.0,
+tilts(3)=1.5,
+tilts(4)=2.0,
+tilts(5)=2.5,
+tilts(6)=3.0,
+tilts(7)=3.5,
+tilts(8)=4.0,
+tilts(9)=4.0,
+tilts(10)=5.0,
+tilts(11)=6.0,
+tilts(12)=7.0,
+tilts(13)=8.0,
+tilts(14)=9.0,
+tilts(15)=10.0,
+tilts(16)=11.0,
+tilts(17)=12.0,
+tilts(18)=13.0,
+tilts(19)=14.0,
+tilts(20)=15.0,
+tilts(21)=16.0,
+tilts(22)=17.0,
+tilts(23)=18.0,
+tilts(24)=19.0,
+tilts(25)=20.0,
+/
+
