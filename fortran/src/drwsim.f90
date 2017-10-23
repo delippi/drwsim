@@ -18,30 +18,6 @@ program drwsim
   real(r_kind),parameter :: r8          = 8.0_r_kind
   real(r_kind),parameter :: r360        = 360.0_r_kind
 
-  !--Derived data type declaration
-
-  type :: radar
-     character(4) :: radid
-     integer(i_kind) :: vcpnum
-     integer(i_kind) :: year
-     integer(i_kind) :: month
-     integer(i_kind) :: day
-     integer(i_kind) :: hour
-     integer(i_kind) :: minute
-     integer(i_kind) :: second
-     real(r_kind) :: radlat
-     real(r_kind) :: radlon
-     real(r_kind) :: radhgt
-     real(r_kind) :: fstgatdis
-     real(r_kind) :: gateWidth
-     real(r_kind) :: elev_angle
-     integer(i_kind) :: num_beam
-     integer(i_kind) :: num_gate
-     real(r_kind) :: nyq_vel
-     real(r_kind) :: azim(360)          !Dims are fixed to facilitate column max calculations
-     real(r_kind) :: field(10000,360)   !Dims are fixed to facilitate column max calculations
-  end type radar
-
 !--Counters for diagnostics
  integer(i_kind) :: num_missing=izero, &      !counts 
                     numbadtime=izero,num_badtilt=izero, &
@@ -73,18 +49,18 @@ program drwsim
   real(r_kind) :: rmins_an
   real(r_kind) :: rdummy
   integer(i_kind):: idummy
-  integer(i_kind) :: irid,itilt,iazm,igate,iazm90
+  integer(i_kind) :: irid,itilt,iazm,igate,itime
 
 
   character(8) cstaid
   character(4) this_staid
-  logical   :: outside,diagprint,inside,bufrisopen,endbufr
+  logical   :: outside,diagprint,inside,bufrisopen,radar_location
   integer   :: diagverbose
 
-  type(radar),allocatable :: strct_in_vel(:,:),rad(:)
+!  type(radar),allocatable :: strct_in_vel(:,:),rad(:)
 
 
-  !---------SETTINGS---------!
+  !---------DEFAULT SETTINGS---------!
   integer(i_kind) :: maxobrange=250000_i_kind  ! Range (m) *within* which to use observations 
   integer(i_kind) :: minobrange=20000_i_kind   ! Range (m) *outside* of which
   real(r_kind)    :: mintilt=0.0_r_kind        ! Only use tilt(elevation) angles (deg) >= this number 
@@ -102,7 +78,7 @@ program drwsim
   !---------NETCDF VARS---------!
   integer(i_kind) :: ncid3d,ncid2d,ncidgs,ier
   integer(i_kind) :: pVarId,uVarId,vVarId,wVarId,ghVarId !3d
-  integer(i_kind) :: dbzVarId                            !2d
+  integer(i_kind) :: dbzVarId,hgtVarID                     !2d
   integer(i_kind) :: glonVarId,glatVarId                 !gs
   integer(i_kind) :: numsig,numlat,numlon,numtimes
   real(r_kind),allocatable  ::    pcoord(    :  ) ! (nsig)
@@ -110,7 +86,7 @@ program drwsim
   real(r_kind),allocatable  ::     ges_v(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::     ges_w(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  :: geop_hgtl(:,:,:,:) ! (nlon,nlat,nsig,ntime)
-  real(r_kind),allocatable  ::     ges_z(:,:   ) ! (nlon,nlat,          )
+  real(r_kind),allocatable  ::ges_hgtsfc(:,:   )  ! (nlon,nlat,          )
   real(r_kind),allocatable  ::   ges_dbz(:,:,  :) ! (nlon,nlat,    ,ntime)
   real(r_kind),allocatable  ::      lons(:,:    ) ! (nlon,nlat           )
   real(r_kind),allocatable  ::      lats(:,:    ) ! (nlon,nlat           )
@@ -222,7 +198,7 @@ program drwsim
   do ii=1,numradars
      read(40,'(a12,1x,2f12.4,1x,f6.2)') dfid(ii),dflat(ii),dflon(ii),dfheight(ii)
      dfid(ii)=trim(dfid(ii))
-     if(diagprint .and. diagverbose >= 2) print *, dfid(ii),dflat(ii),dflon(ii),dfheight(ii)
+     if(diagprint .and. diagverbose >= 3) print *, dfid(ii),dflat(ii),dflon(ii),dfheight(ii)
   end do
   close(40)
 
@@ -268,11 +244,6 @@ program drwsim
   ier=nf90_get_var(ncid3d,wVarId,ges_w)
   if(ier /= nf90_NoErr) STOP "ERROR GET ges_w NETCDF STOP!"
 
-  ! z
-  allocate(ges_z(nlon,nlat))
-  if(diagprint .and. diagverbose >= 2) print *, "Reading ges_z"
-  ges_z=0.0_r_kind !initialize
-
   ! geop_hgtl
   allocate(geop_hgtl(nlon,nlat,nsig,ntime))
   if(diagprint .and. diagverbose >= 2) print *, "Reading geop_hgtl"
@@ -301,6 +272,15 @@ program drwsim
   if(ier /= nf90_NoErr) STOP "ERROR INQ ges_dbz NETCDF STOP!"
   ier=nf90_get_var(ncid2d,dbzVarId,ges_dbz)
   if(ier /= nf90_NoErr) STOP "ERROR GET ges_dbz NETCDF STOP!"
+
+  ! z
+  allocate(ges_hgtsfc(nlon,nlat))
+  if(diagprint .and. diagverbose >= 2) print *, "Reading ges_hgtsfc"
+  ges_hgtsfc=0.0_r_kind !initialize
+  ier=nf90_inq_varid(ncid2d,"HGTsfc", hgtVarID)
+  if(ier /= nf90_NoErr) STOP "ERROR INQ hgtsfc NETCDF STOP!"
+  ier=nf90_get_var(ncid2d,hgtVarID,ges_hgtsfc)
+  if(ier /= nf90_NoErr) STOP "ERROR GET hgtsfc NETCDF STOP!"
 
   ! close file
   if(diagprint .and. diagverbose >= 1) print *, "Closing nesteddata2d"
@@ -336,21 +316,19 @@ program drwsim
   
 
    if(diagprint .and. diagverbose >= 3) then
-      print *, maxval(    ges_u(:,:,:,:)) 
-      print *, maxval(    ges_v(:,:,:,:)) 
-      print *, maxval(    ges_w(:,:,:,:)) 
-      print *, maxval(geop_hgtl(:,:,:,:)) 
-      print *, maxval(  ges_dbz(:,:,  :)) 
-      print *, maxval(     glon(:,:    ))
-      print *, maxval(     glat(:,:    ))
-      print *, maxval(    ges_z(:,:    )) 
+      print *, maxval(     ges_u(:,:,:,:)), minval(     ges_u(:,:,:,:)) 
+      print *, maxval(     ges_v(:,:,:,:)), minval(     ges_v(:,:,:,:))
+      print *, maxval(     ges_w(:,:,:,:)), minval(     ges_w(:,:,:,:)) 
+      print *, maxval( geop_hgtl(:,:,:,:)), minval( geop_hgtl(:,:,:,:)) 
+      print *, maxval(   ges_dbz(:,:,  :)), minval(   ges_dbz(:,:,  :)) 
+      print *, maxval(      glon(:,:    )), minval(      glon(:,:    ))
+      print *, maxval(      glat(:,:    )), minval(      glat(:,:    ))
+      print *, maxval(ges_hgtsfc(:,:    )), minval(ges_hgtsfc(:,:    )) 
    end if
    
   !set up information needed to interpolate model to observation
   !*********************************
-  ! I DON'T THINK WE NEED TO DO THIS SINCE THEY"RE ALREADY LON/LAT NOT LAT/LON
   call gridmod_extract
-  if(diagprint .and. diagverbose>=3)  print *, "back from gridmod_extract"
   !*********************************
 
    if (diagprint .and. diagverbose >= 3) then
@@ -377,12 +355,12 @@ program drwsim
  
   nelv=25
   rad_nelv=25 
-  allocate(drwpol(1,360,numgates))
-
+!  loopOVERtime: do itime=1,ntime
   loopOVERradars: do irid=1,numradars 
+     allocate(drwpol(1,360,numgates))
      drwpol=-999.0_r_kind !Initialize/Reset the drw polar field
-     endbufr=.false.
-     ifKGRK: if(trim(dfid(irid))==" KGRK") then ! The space before KGRK is needed...
+     radar_location=.true. ! logical to only compute radar x,y once later in loop.
+     ifKGRK: if(adjustl(trim(dfid(irid)))=="KGRK") then
         stahgt=dfheight(irid)
         rlon0=dflon(irid)*deg2rad
         rlat0=dflat(irid)*deg2rad
@@ -395,10 +373,12 @@ program drwsim
            celev0=cos(thistiltr)
            selev0=sin(thistiltr)
            loopOVERazimuths: do iazm=1,360
-              !iazm90=iazm-90.0_r_kind
-              thisazimuthr=iazm*deg2rad
+              if(diagprint .and. diagverbose >= 1) print *,iazm," out of 360-deg"
+              thisazimuth=90.0_r_kind-float(iazm) ! 90-azm to be consistent with l2rwbufr
+              if(thisazimuth>=360) thisazimuth=thisazimuth-360
+              if(thisazimuth<zero) thisazimuth=thisazimuth+360
+              thisazimuthr=thisazimuth*deg2rad
               loopOVERgates: do igate=1,numgates     
-                 if(diagprint .and. diagverbose >= 2) print *, igate,iazm,itilt,irid
                  inside=.false.
                  if(igate*gatespc >= minobrange .and. igate*gatespc <= maxobrange) inside=.true.
                  ifinside: if(inside) then
@@ -426,17 +406,19 @@ program drwsim
                     rlatloc=rad_per_meter*gamma*sin(thisazimuthr)
                     call invtllv(rlonloc,rlatloc,rlon0,clat0,slat0,rlonglob,rlatglob)
                     !-Find grid relative location of the radar.
-                    radar_lat=dflat(irid)
-                    radar_lon=dflon(irid)
-                    if(radar_lon>=360) radar_lon=radar_lon-360
-                    if(radar_lon<zero) radar_lon=radar_lon+360
-                    radar_lon=radar_lon*deg2rad
-                    radar_lat=radar_lat*deg2rad
-                    call tll2xy(radar_lon,radar_lat,radar_x,radar_y)
-                    if(diagprint .and. diagverbose >= 2) print *, "Radar x,y location on the model grid is:",&
-                                                                   radar_x,radar_y 
+                    if(radar_location) then
+                       radar_lat=dflat(irid) !lat/lons stored as deg.
+                       radar_lon=dflon(irid)
+                       if(radar_lon>=360) radar_lon=radar_lon-360 !fix if needed.
+                       if(radar_lon<zero) radar_lon=radar_lon+360
+                       radar_lon=radar_lon*deg2rad !convert to radians.
+                       radar_lat=radar_lat*deg2rad
+                       call tll2xy(radar_lon,radar_lat,radar_x,radar_y)
+                       if(diagprint .and. diagverbose >= 3) print *, "Radar x,y location is:",radar_x,radar_y 
+                       if(diagprint .and. diagverbose >= 3) print *, "Radar lon,lat is     :",radar_lon*rad2deg,radar_lat*rad2deg
+                       radar_location=.false. ! turn off get radar x/y until next radar is processed.
+                    end if
                     !-Find grid relative location of the ob.
-                    !if(diagprint .and. diagverbose >= 2) print*,"one:",rlatglob,rlonglob
                     thislat=rlatglob*rad2deg
                     thislon=rlonglob*rad2deg
                     if(thislon>=360) thislon=thislon-360
@@ -444,12 +426,16 @@ program drwsim
                     thislat=thislat*deg2rad
                     thislon=thislon*deg2rad
                     call tll2xy(thislon,thislat,dlon,dlat)
-                    call tintrp2a_single_level(ges_z,zsges,dlat,dlon)
-                    if(diagprint .and. diagverbose >= 3) print *,"Back from tintrp2a_single_level"
-                    !Subtract off the terrain height
-                    dpres=dpres-zsges      !  remove terrain height from ob absolute height
-                    call tintrp2a(geop_hgtl,hges,dlat,dlon,nsig)  
-                    if(diagprint .and. diagverbose >= 3) print *,"Back from tintrp2a"
+                    if(diagprint .and. diagverbose >= 5) print *, "ob x,y location is   :",dlon,dlat
+                    if(diagprint .and. diagverbose >= 5) print *, "ob lon,lat is        :",thislon*rad2deg,thislat*rad2deg
+
+!**********************************DO WIND ROTATION IF RADIAL WIND****!
+!   SHOULD NOT BE NEEDED FOR FV3???
+!**********************************DO WIND ROTATION IF RADIAL WIND****!
+
+                    call tintrp2a_single_level(ges_hgtsfc,zsges,dlon,dlat)
+                    !dpres=dpres-zsges      !  remove terrain height from ob absolute height
+                    call tintrp2a(geop_hgtl,hges,dlon,dlat,nsig)  
                !    Convert geopotential height at layer midpoints to
                !    geometric height using
                !    equations (17, 20, 23) in MJ Mahoney's note "A
@@ -462,27 +448,24 @@ program drwsim
                !    termrg = first term in the denominator of equation 23
                !    zges   = equation 23
                     sin2  = sin(thislat)*sin(thislat)
-                    termg = grav_equator * &
-                         ((one+somigliana*sin2)/sqrt(one-eccentricity*eccentricity*sin2))
-                    termr = semi_major_axis /(one + flattening + grav_ratio-  &
-                         two*flattening*sin2)
+                    termg = grav_equator * ((one+somigliana*sin2)/sqrt(one-eccentricity*eccentricity*sin2))
+                    termr = semi_major_axis /(one + flattening + grav_ratio-  two*flattening*sin2)
                     termrg = (termg/grav)*termr
                     do n=1,nsig
                        zges(n) = (termr*hges(n)) / (termrg-hges(n))  ! eq (23)
                     end do
-               !    Convert observation height (in dpres) from meters to
-               !    grid relative
-               !    units.  Save the observation height in zob for later
-               !    use.
-                    zob = dpres
-                    call grdcrd(dpres,1,zges,nsig,1)
-                    if(diagprint .and. diagverbose >= 3) print *,"Back from tintrp2a"
+                    zsges=(termr*zsges) / (termrg-zsges)  ! eq (23)
+                    dpres=dpres-zsges      !  remove terrain height from ob absolute height
+               !    Convert observation height (in dpres) from meters to grid relative
+               !    units.  Save the observation height in zob for later use.
+                    !zob = dpres
+                    call grdcrd(dpres,1,zges,nsig,-1)
+               !     if(diagprint .and. diagverbose >=1 .and. iazm>=350) print*,"dpres = ",dpres,igate
                !    Interpolate guess u and v to observation location                                  
-                    call tintrp3(ges_u,ugesin,dlat,dlon,dpres)
-                    call tintrp3(ges_v,vgesin,dlat,dlon,dpres)
-                    call tintrp3(ges_w,wgesin,dlat,dlon,dpres)
-               !    Convert guess u,v wind components to radial value
-               !    consident with obs    
+                    call tintrp3(ges_u,ugesin,dlon,dlat,dpres)
+                    call tintrp3(ges_v,vgesin,dlon,dlat,dpres)
+                    call tintrp3(ges_w,wgesin,dlon,dlat,dpres)
+               !    Convert guess u,v,w wind components to radial value
                     cosazm  = cos(thisazimuthr)! cos(azimuth angle)                       
                     sinazm  = sin(thisazimuthr)! sin(azimuth angle)                       
                     costilt = cos(thistiltr)   ! cos(tilt angle)
@@ -566,10 +549,11 @@ program drwsim
         close(10)       ! close bufr file
         close(11)       ! close l2rwbufr.table
         bufrisopen=.false.
-
-
+        
      end if ifKGRK
+     deallocate(drwpol)
   end do loopOVERradars 
+!  end do loopOVERtime
 
 
   print *, "end of program" 

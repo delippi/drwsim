@@ -39,7 +39,7 @@ def main():
     STAID='KGRK'         # station id you want to plot.                         #
     anel0=0.5            # tilt angle you want to plot.                         #
     field='RADIAL WIND'  # you can plot 'RADIAL WIND' or 'REFLECTIVITY'         #
-    ithin=40
+    ithin=4
     gatespc=250.*ithin
 ##### END OF USER DEFINED SETTINGS ##############################################
     tic = time.clock()

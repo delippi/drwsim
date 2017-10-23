@@ -135,7 +135,7 @@ subroutine tintrp3(f,gout,dxin,dyin,dzin)
 
 ! Declare passed variables
 !  integer(i_kind)                             ,intent(in   ) :: n !number of interpolatees (always 1)
-  real(r_kind),dimension(nlat,nlon,nsig),intent(in   ) :: f
+  real(r_kind),dimension(nlon,nlat,nsig),intent(in   ) :: f
   real(r_kind)                          ,intent(in   ) :: dxin,dyin,dzin !dx=x location, dy=y location, dz=closest GRID UNIT height location
   real(r_kind)                          ,intent(  out) :: gout
 
@@ -248,7 +248,7 @@ subroutine tintrp2a(f,gout,dxin,dyin,nlevs)
 
 ! Declare passed variables
   integer(i_kind)                              ,intent(in   ) :: nlevs
-  real(r_kind),dimension(nlat,nlon,nsig),intent(in   ) :: f
+  real(r_kind),dimension(nlon,nlat,nsig),intent(in   ) :: f
   real(r_kind),                                 intent(in   ) :: dxin,dyin
   real(r_kind),dimension(nlevs)         ,intent(  out) :: gout
 
@@ -357,7 +357,7 @@ subroutine tintrp2a_single_level(fin,gout,dxin,dyin)
   implicit none
 
 ! Declare passed variables
-  real(r_kind),dimension(nlat,nlon),intent(in   ) :: fin
+  real(r_kind),dimension(nlon,nlat),intent(in   ) :: fin
   real(r_kind),                                 intent(in   ) :: dxin,dyin
   real(r_kind),                                 intent(  out) :: gout
 
@@ -369,7 +369,7 @@ subroutine tintrp2a_single_level(fin,gout,dxin,dyin)
   
   real(r_kind),dimension(1) :: dx,dy
   real(r_kind),dimension(1,1) :: g
-  real(r_kind),dimension(nlat,nlon,1) :: f
+  real(r_kind),dimension(nlon,nlat,1) :: f
   
   f=zero
   f(:,:,1)=fin    
