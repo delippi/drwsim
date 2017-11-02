@@ -28,8 +28,7 @@ program drwsim
                      ikx,mins_an,mins_ob,lu,n,iret
   integer(i_kind) :: maxobs,nchanl,ilat,ilon,maxgate,rad_nelv,cm
 
-  integer(i_kind),dimension(5) :: obdate,iadate,intdate
-  integer(i_kind),dimension(4) :: ndate
+  integer(i_kind),dimension(4) :: obdate,iadate,intdate
   character(4) :: yyyy
   character(2) :: mm,dd,hh,mn
   character(10):: fhr
@@ -160,38 +159,38 @@ program drwsim
   nestedgrid  =trim(datapath) // trim(nestedgrid)
 
   if(diagprint .and. diagverbose >= 1) then
-     print *, "----NC FILE SPECS--------"
-     print *, "nlat",nlat
-     print *, "nlon",nlon
-     print *, "nsig",nsig
-     print *, "grid spacing = 3km"
+     write(*,*) "----NC FILE SPECS--------"
+     write(*,*) "nlat",nlat
+     write(*,*) "nlon",nlon
+     write(*,*) "nsig",nsig
+     write(*,*) "grid spacing = 3km"
 
-     print *, "----Namelist settings----"
-     print *, "staid       ",staid
-     print *, "tilts       ",tilts
-     print *, "azimuths    ",azimuths
-     print *, "numgates    ",numgates
-     print *, "ithin       ",ithin
-     print *, "gatespc     ",gatespc
-     print *, "maxobrange  ",maxobrange
-     print *, "minobrange  ",minobrange
-     print *, "mintilt     ",mintilt
-     print *, "maxtilt     ",maxtilt
-     print *, "mindbz      ",mindbz
-     print *, "datapath:",datapath
-     print *, "nesteddata3d:",nesteddata3d
-     print *, "nesteddata2d:",nesteddata2d
-     print *, "radarcsv:",radarcsv
-     print *, "nestedgrid:",nestedgrid
-     print *, "diagprint: ",diagprint
-     print *, "diagverbose: ",diagverbose
+     write(*,*) "----Namelist settings----"
+     write(*,*) "staid       ",staid
+     write(*,*) "tilts       ",tilts
+     write(*,*) "azimuths    ",azimuths
+     write(*,*) "numgates    ",numgates
+     write(*,*) "ithin       ",ithin
+     write(*,*) "gatespc     ",gatespc
+     write(*,*) "maxobrange  ",maxobrange
+     write(*,*) "minobrange  ",minobrange
+     write(*,*) "mintilt     ",mintilt
+     write(*,*) "maxtilt     ",maxtilt
+     write(*,*) "mindbz      ",mindbz
+     write(*,*) "datapath:",datapath
+     write(*,*) "nesteddata3d:",nesteddata3d
+     write(*,*) "nesteddata2d:",nesteddata2d
+     write(*,*) "radarcsv:",radarcsv
+     write(*,*) "nestedgrid:",nestedgrid
+     write(*,*) "diagprint: ",diagprint
+     write(*,*) "diagverbose: ",diagverbose
   end if
 
   if(diagprint .and. diagverbose >= 3) then
-     print *, "deg2rad",deg2rad
-     print *, "rearth",rearth
-     if(deg2rad>0) print *, "(derived constants succesfully initialized)"
-     if(rearth==6370.e03_r_kind) print *, "(regional consts sucess init)"
+     write(*,*) "deg2rad",deg2rad
+     write(*,*) "rearth",rearth
+     if(deg2rad>0) write(*,*) "(derived constants succesfully initialized)"
+     if(rearth==6370.e03_r_kind) write(*,*) "(regional consts sucess init)"
   end if
 
   if (minobrange >= maxobrange) then
@@ -203,26 +202,26 @@ program drwsim
 
 
 !------ OPEN GLOBAL RADAR LIST ---------------------------
-  if(diagprint .and. diagverbose >= 1) print *, "Reading Global Radar List"
+  write(*,*) "Reading Global Radar List"
   numradars=154
   allocate(dfid(numradars),dflat(numradars),dflon(numradars),dfheight(numradars))
   open(40,file=trim(radarcsv))!,status='old',action='read',iostat=ierror,form='formatted')
   do ii=1,numradars
      read(40,'(a12,1x,2f12.4,1x,f6.2)') dfid(ii),dflat(ii),dflon(ii),dfheight(ii)
      dfid(ii)=trim(dfid(ii))
-     if(diagprint .and. diagverbose >= 3) print *, dfid(ii),dflat(ii),dflon(ii),dfheight(ii)
+     if(diagprint .and. diagverbose >= 3) write(*,*) dfid(ii),dflat(ii),dflon(ii),dfheight(ii)
   end do
   close(40)
 
 !------ OPEN 3D NETCDF FILE ------------------------------
   ncid3d=30
-  if(diagprint .and. diagverbose >= 1) print *, "Opening and reading nesteddata3d"
+  write(*,*) "Opening and reading nesteddata3d"
   ier=nf90_open(nesteddata3d,nf90_NoWrite,ncid3d)
   if(ier /= nf90_NoErr) STOP "ERROR READ NETCDF STOP!"
 
   ! time
   allocate(time(ntime))
-  if(diagprint .and. diagverbose >= 2) print *, "Reading time"
+  write(*,*) "Reading time"
   pcoord=0.0_r_kind !initialize
   ier=nf90_inq_varid(ncid3d,"time",tVarId)
   if(ier /= nf90_NoErr) STOP "ERROR INQ time NETCDF STOP!"
@@ -231,7 +230,7 @@ program drwsim
 
   ! pcoord
   allocate(pcoord(nsig))
-  if(diagprint .and. diagverbose >= 2) print *, "Reading pcoord"
+  write(*,*) "Reading pcoord"
   pcoord=0.0_r_kind !initialize
   ier=nf90_inq_varid(ncid3d,"pfull",pVarId)
   if(ier /= nf90_NoErr) STOP "ERROR INQ pcoord NETCDF STOP!"
@@ -242,7 +241,7 @@ program drwsim
 
   ! u
   allocate(ges_u(nlon,nlat,nsig,ntime))
-  if(diagprint .and. diagverbose >= 2) print *, "Reading ges_u"
+  write(*,*) "Reading ges_u"
   ges_u=0.0_r_kind !initialize
   ier=nf90_inq_varid(ncid3d,"ucomp",uVarId)
   if(ier /= nf90_NoErr) STOP "ERROR INQ ges_u NETCDF STOP!"
@@ -251,7 +250,7 @@ program drwsim
 
   ! v
   allocate(ges_v(nlon,nlat,nsig,ntime))
-  if(diagprint .and. diagverbose >= 2) print *, "Reading ges_v"
+  write(*,*) "Reading ges_v"
   ges_v=0.0_r_kind !initialize
   ier=nf90_inq_varid(ncid3d,"vcomp",vVarId)
   if(ier /= nf90_NoErr) STOP "ERROR INQ ges_v NETCDF STOP!"
@@ -260,7 +259,7 @@ program drwsim
 
   ! w
   allocate(ges_w(nlon,nlat,nsig,ntime))
-  if(diagprint .and. diagverbose >= 2) print *, "Reading ges_w"
+  write(*,*) "Reading ges_w"
   ges_w=0.0_r_kind !initialize
   ier=nf90_inq_varid(ncid3d,"w",    wVarId)
   if(ier /= nf90_NoErr) STOP "ERROR INQ ges_w NETCDF STOP!"
@@ -269,7 +268,7 @@ program drwsim
 
   ! geop_hgtl - note this field may not be the correct one to use...
   allocate(geop_hgtl(nlon,nlat,nsig,ntime))
-  if(diagprint .and. diagverbose >= 2) print *, "Reading geop_hgtl"
+  write(*,*) "Reading geop_hgtl"
   geop_hgtl=0.0_r_kind !initialize
   ier=nf90_inq_varid(ncid3d,"delz", ghVarId)
   if(ier /= nf90_NoErr) STOP "ERROR INQ geop_hgtl NETCDF STOP!"
@@ -279,7 +278,7 @@ program drwsim
 
 !  ! dbz - which doesn't exist in the file yet...
 !  allocate(ges_dbz(nlon,nlat,nsig,ntime))
-!  if(diagprint .and. diagverbose >= 2) print *, "Reading ges_dbz"
+!  write(*,*) "Reading ges_dbz"
 !  ges_dbz=0.0_r_kind !initialize
 !  ier=nf90_inq_varid(ncid3d,"reflectivity", dbzVarId)
 !  if(ier /= nf90_NoErr) STOP "ERROR INQ ges_dbz NETCDF STOP!"
@@ -287,19 +286,19 @@ program drwsim
 !  if(ier /= nf90_NoErr) STOP "ERROR GET ges_dbz NETCDF STOP!"
 
   ! close file
-  if(diagprint .and. diagverbose >= 1) print *, "Closing nesteddata3d"
+  write(*,*) "Closing nesteddata3d"
   ier=nf90_close(ncid3d)
   if(ier /= nf90_NoErr) STOP "ERROR CLOSE 3D NETCDF STOP!"
 
 !------ OPEN 2D NETCDF FILE ------------------------------
   ncid2d=20
-  if(diagprint .and. diagverbose >= 1) print *, "Opening and reading nesteddata2d"
+  write(*,*) "Opening and reading nesteddata2d"
   ier=nf90_open(nesteddata2d,nf90_NoWrite,ncid2d)
   if(ier /= nf90_NoErr) STOP "ERROR READ NETCDF STOP!"
 
   ! z - note this field may not be the correct one to use...
   allocate(ges_z(nlon,nlat))
-  if(diagprint .and. diagverbose >= 2) print *, "Reading ges_z"
+  write(*,*) "Reading ges_z"
   ges_z=0.0_r_kind !initialize
   ier=nf90_inq_varid(ncid2d,"HGTsfc", hgtVarID)
   if(ier /= nf90_NoErr) STOP "ERROR INQ hgtsfc NETCDF STOP!"
@@ -309,7 +308,7 @@ program drwsim
 
   ! psfc
   allocate(ges_psfc(nlon,nlat))
-  if(diagprint .and. diagverbose >= 2) print *, "Reading ges_psfc"
+  write(*,*) "Reading ges_psfc"
   ges_psfc=0.0_r_kind !initialize
   ier=nf90_inq_varid(ncid2d,"PRESsfc", psfcVarID)
   if(ier /= nf90_NoErr) STOP "ERROR INQ psfc NETCDF STOP!"
@@ -317,18 +316,18 @@ program drwsim
   if(ier /= nf90_NoErr) STOP "ERROR GET psfc NETCDF STOP!"
 
   ! close file
-  if(diagprint .and. diagverbose >= 1) print *, "Closing nesteddata2d"
+  write(*,*) "Closing nesteddata2d"
   ier=nf90_close(ncid2d)
   if(ier /= nf90_NoErr) STOP "ERROR CLOSE 2D NETCDF STOP!"
 
 !------ OPEN GRID SPEC NETCDF FILE -----------------------
   ncidgs=21
-  if(diagprint .and. diagverbose >= 2) print *, "Opening and reading nestedgrid"
+  write(*,*) "Opening and reading nestedgrid"
   ier=nf90_open(nestedgrid,nf90_NoWrite,ncidgs)
   if(ier /= nf90_NoErr) STOP "ERROR READ NETCDF STOP!"
   
   ! glon
-  if(diagprint .and. diagverbose >= 2) print *, "Reading glon"
+  write(*,*) "Reading glon"
   allocate(glon(nlon,nlat))
   ier=nf90_inq_varid(ncidgs,"grid_lont", glonVarId)
   if(ier /= nf90_NoErr) STOP "ERROR INQ glon NETCDF STOP!"
@@ -336,7 +335,7 @@ program drwsim
   if(ier /= nf90_NoErr) STOP "ERROR GET glon NETCDF STOP!"
 
   ! glat
-  if(diagprint .and. diagverbose >= 2) print *, "Reading glat"
+  write(*,*) "Reading glat"
   allocate(glat(nlon,nlat))
   ier=nf90_inq_varid(ncidgs,"grid_latt", glatVarId)
   if(ier /= nf90_NoErr) STOP "ERROR INQ glat NETCDF STOP!"
@@ -344,7 +343,7 @@ program drwsim
   if(ier /= nf90_NoErr) STOP "ERROR GET glat NETCDF STOP!"
 
   ! close file
-  if(diagprint .and. diagverbose >= 1) print *, "Closing nestedgrid"
+  write(*,*) "Closing nestedgrid"
   ier=nf90_close(ncidgs)
   if(ier /= nf90_NoErr) STOP "ERROR CLOSE GRID SPEC NETCDF STOP!"
  
@@ -369,17 +368,17 @@ program drwsim
   end do
 
    if(diagprint .and. diagverbose >= 2) then
-      print *,"time     ", maxval(     time(      :)), minval(     time(      :)) 
-      print *,"pcoord   ", maxval(   pcoord(    :  )), minval(   pcoord(    :  )) 
-      print *,"ges_u    ", maxval(    ges_u(:,:,:,:)), minval(    ges_u(:,:,:,:)) 
-      print *,"ges_v    ", maxval(    ges_v(:,:,:,:)), minval(    ges_v(:,:,:,:))
-      print *,"ges_w    ", maxval(    ges_w(:,:,:,:)), minval(    ges_w(:,:,:,:)) 
-      print *,"geop_hgtl", maxval(geop_hgtl(:,:,:,:)), minval(geop_hgtl(:,:,:,:)) 
-!      print *,"ges_dbz  ", maxval(  ges_dbz(:,:,:,:)), minval(  ges_dbz(:,:,:,:)) 
-      print *,"glon     ", maxval(     glon(:,:    )), minval(     glon(:,:    ))
-      print *,"glat     ", maxval(     glat(:,:    )), minval(     glat(:,:    ))
-      print *,"ges_z    ", maxval(    ges_z(:,:    )), minval(    ges_z(:,:    )) 
-      print *,"ges_psfc ", maxval( ges_psfc(:,:    )), minval( ges_psfc(:,:    )) 
+      write(*,*)"time     ", maxval(     time(      :)), minval(     time(      :)) 
+      write(*,*)"pcoord   ", maxval(   pcoord(    :  )), minval(   pcoord(    :  )) 
+      write(*,*)"ges_u    ", maxval(    ges_u(:,:,:,:)), minval(    ges_u(:,:,:,:)) 
+      write(*,*)"ges_v    ", maxval(    ges_v(:,:,:,:)), minval(    ges_v(:,:,:,:))
+      write(*,*)"ges_w    ", maxval(    ges_w(:,:,:,:)), minval(    ges_w(:,:,:,:)) 
+      write(*,*)"geop_hgtl", maxval(geop_hgtl(:,:,:,:)), minval(geop_hgtl(:,:,:,:)) 
+!      write(*,*)"ges_dbz  ", maxval(  ges_dbz(:,:,:,:)), minval(  ges_dbz(:,:,:,:)) 
+      write(*,*)"glon     ", maxval(     glon(:,:    )), minval(     glon(:,:    ))
+      write(*,*)"glat     ", maxval(     glat(:,:    )), minval(     glat(:,:    ))
+      write(*,*)"ges_z    ", maxval(    ges_z(:,:    )), minval(    ges_z(:,:    )) 
+      write(*,*)"ges_psfc ", maxval( ges_psfc(:,:    )), minval( ges_psfc(:,:    )) 
    end if
 
    !--Make sure we're not missing fields.
@@ -414,22 +413,13 @@ program drwsim
 
 
   ndata=izero
-  nread=izero
 
   !-Obtain analysis time in minutes since reference date
+  !call w3fs21(iadate,mins_an)  !mins_an -integer number of mins snce 01/01/1978
+  !rmins_an=mins_an             !convert to real number
 
-  call w3fs21(iadate,mins_an)  !mins_an -integer number of mins snce 01/01/1978
-  rmins_an=mins_an             !convert to real number
-
- 
-  !nelv=25
-  !rad_nelv=25 
-  loopOVERtime: do itime=2,2 !ntime
-     !----------------------------------------------------------------
-     !--------------- NEED SOMETHING HERE TO GET CURRENT DATE --------
-     !----------------------------------------------------------------
-     write(*,*) "Date: ",iadate(1),iadate(2),iadate(3),iadate(4)
-     write(*,*)time(itime)*24 !hours since iadate
+  loopOVERtime: do itime=1,ntime
+     if(itime > 1) call newdate(iadate,1,iadate) ! don't increment the first time.
      loopOVERradars: do irid=1,numradars 
         allocate(drwpol(nelv,360,numgates))
         drwpol=-999.0_r_kind !Initialize/Reset the drw polar field
@@ -447,9 +437,11 @@ program drwsim
               celev0=cos(thistiltr)
               selev0=sin(thistiltr)
               loopOVERazimuths: do iazm=1,360
-                 if(diagprint .and. diagverbose >= 1) then
-                    write(*,'(a8,f4.1,i4,a20)'),"itilt = ",tilts(itilt),iazm," out of 360-deg"
-                 end if
+                 1000 format(a5,1x,i4,i2.2,i2.2,i2.2,4x,a6,1x,a4,4x,a5,1x,f4.1,a1,f4.1,4x,a4,1x,i3,a8)
+                 write(*,1000),"Date:",iadate(1),iadate(2),iadate(3),iadate(4),&
+                               "Radar:",adjustl(trim(dfid(irid))),&
+                               "Tilt:",tilts(itilt),"/",tilts(nelv),&
+                               "Azm:",iazm,"/360-deg"
                  thisazimuth=90.0_r_kind-float(iazm) ! 90-azm to be consistent with l2rwbufr
                  if(thisazimuth>=r360) thisazimuth=thisazimuth-r360
                  if(thisazimuth<zero) thisazimuth=thisazimuth+r360
@@ -490,8 +482,8 @@ program drwsim
                           radar_lon=radar_lon*deg2rad !convert to radians.
                           radar_lat=radar_lat*deg2rad
                           call tll2xy(radar_lon,radar_lat,radar_x,radar_y)
-                          if(diagprint .and. diagverbose >= 3) print *, "Radar x,y location is:",radar_x,radar_y 
-                          if(diagprint .and. diagverbose >= 3) print *, "Radar lon,lat is     :",radar_lon*rad2deg,radar_lat*rad2deg
+                          if(diagprint .and. diagverbose >= 3) write(*,*) "Radar x,y location is:",radar_x,radar_y 
+                          if(diagprint .and. diagverbose >= 3) write(*,*) "Radar lon,lat is     :",radar_lon*rad2deg,radar_lat*rad2deg
                           radar_location=.false. ! turn off get radar x/y until next radar is processed.
                        end if
                        !-Find grid relative location of the ob.
@@ -502,8 +494,8 @@ program drwsim
                        thislat=thislat*deg2rad
                        thislon=thislon*deg2rad
                        call tll2xy(thislon,thislat,dlon,dlat)
-                       if(diagprint .and. diagverbose >= 5) print *, "ob x,y location is   :",dlon,dlat
-                       if(diagprint .and. diagverbose >= 5) print *, "ob lon,lat is        :",thislon*rad2deg,thislat*rad2deg
+                       if(diagprint .and. diagverbose >= 5) write(*,*) "ob x,y location is   :",dlon,dlat
+                       if(diagprint .and. diagverbose >= 5) write(*,*) "ob lon,lat is        :",thislon*rad2deg,thislat*rad2deg
 
 !**********************************DO WIND ROTATION IF RADIAL WIND****!
 !   SHOULD NOT BE NEEDED FOR FV3???
@@ -568,6 +560,7 @@ program drwsim
                           if(iazm90>=r360) iazm90=iazm90-r360
                           if(iazm90< zero) iazm90=iazm90+r360
                           drwpol(itilt,iazm,igate) = ugesin*cosazm*costilt  +vgesin*sinazm*costilt  +wgesin*sintilt 
+                          ndata=ndata+1
 !                       end if dbzCheck
                     end if ifinside
                  end do loopOVERgates
@@ -578,7 +571,7 @@ program drwsim
 
 
            !-------------BUFFERIZE--------------------------------------------------!
-           if(diagprint .and. diagverbose >= 1) print *,"Writing bufr file for ",trim(dfid(irid))
+           if(diagprint .and. diagverbose >= 1) write(*,*)"Writing bufr file for ",trim(dfid(irid))
            hdstr='SSTN CLON CLAT SELV ANEL YEAR MNTH DAYS HOUR MINU QCRW ANAZ'
            obstr='DIST125M DMVR DVSW'                     !NL2RW--level 2 radial wind.
            open(41,file='l2rwbufr.table.csv')        
@@ -592,7 +585,7 @@ program drwsim
               end if
            end do
            close(41)
-           if(diagprint .and. diagverbose >= 2) print *, message_type
+           if(diagprint .and. diagverbose >= 2) write(*,*) message_type
            call w3ai15(iadate(1),yyyy,1,4,'')
            call w3ai15(iadate(2),  mm,1,2,'')
            call w3ai15(iadate(3),  dd,1,2,'')
@@ -614,8 +607,9 @@ program drwsim
            hdr(10)= 00               !MINU - MINUTE
            hdr(11)= 1                !QCRW - QUALITY MARK FOR WINDS ALONG RADIAL LINE
            !hdr(12) goes in azm loop below.
-           bufrfilename=trim(idate)//'_fhr'//'02'//'_fv3.t'//trim(hh)//'z.drw.bufr'
+           bufrfilename=trim(idate)//'_fv3.t'//trim(hh)//'z.drw.bufr'
            bufrtilt: do itiltbufr=1,nelv
+              intdate=iadate(1)*1000000 + iadate(2)*10000 + iadate(3)*100 + iadate(4) ! int(yyyymmddhh)
               hdr(5) = tilts(itiltbufr) 
               if(.not.bufrisopen) then !open a new message for each tilt 
                  open(unit=10,file=trim(bufrfilename),status='unknown',action='write',form='unformatted')
@@ -623,7 +617,6 @@ program drwsim
                  call openbf(10,'OUT',11)
                  bufrisopen=.true.
               end if
-              intdate=iadate(1)*1000000 + iadate(2)*10000 + iadate(3)*100 + iadate(4) ! int(yyyymmddhh)
               call openmb(10,trim(subset),intdate)
               bufrazm: do iazmbufr=1,360
                  iazmbufr90=90-iazmbufr
@@ -663,8 +656,9 @@ program drwsim
   mins=int(    mod(total_time,3600.0)/60.0 )
   secs=int(mod(mod(total_time,3600.0),60.0))
   write(*,'(a14,i2.2,a1,i2.2,a1,i2.2)')"Elapsed time:   ",hrs,":",mins,":",secs
-  print *,  "Elapsed time (s) =", total_time
-  print *, "end of program" 
+  write(*,*)  "Elapsed time (s) =", total_time
+  write(*,*) "end of program" 
+  write(*,*) "ndata = ",ndata
 end program drwsim
 
 
@@ -756,3 +750,59 @@ SUBROUTINE invtllv(ALM,APH,TLMO,CTPH0,STPH0,TLM,TPH)
   TPH=ASIN(CTPH0*SPH+STPH0*CC)
 
 END SUBROUTINE invtllv
+
+subroutine newdate(indate,nhr,outdate)
+! This routine takes a date and an amount of time in hours to increment and
+! outputs the new date. idate must be dimension 4 with years starting in 1st
+! dimension.
+! input:   indate (yyyymmddhh) 
+!             nhr (        hh)
+! output: outdate (yyyymmddhh)
+
+  use kinds
+
+  implicit none
+
+  integer(i_kind),dimension(4),intent(in   ) :: indate
+  integer(i_kind)             ,intent(in   ) :: nhr
+  integer(i_kind),dimension(4),intent(  out) :: outdate
+
+  !--local declarations
+  integer(i_kind) :: yy,mm,dd,hh,maxdd
+
+  yy=indate(1)
+  mm=indate(2)
+  dd=indate(3)
+  hh=indate(4)
+
+  if(mm==01 .or. mm==03 .or. mm==05 .or. mm==07 .or. mm==08 .or. mm==10 .or. mm==12) then
+     maxdd=31
+  else if(mm==02 .and. mod(yy,4)==0) then
+     maxdd=28
+  else if(mm==02 .and. mod(yy,4)> 0) then
+     maxdd=29
+  else if(mm==04 .or. mm==06 .or. mm==09 .or. mm==11) then
+     maxdd=30
+  end if
+  
+  hh=hh+nhr
+  do while (hh >= 24)
+     if(hh >= 24) then
+        hh=hh-24
+        dd=dd+1
+        if(dd>maxdd) then
+          dd=01
+          mm=mm+1
+          if(mm>12) then
+             mm=01
+          end if
+        end if
+     end if
+  end do
+  
+  outdate(1)=yy
+  outdate(2)=mm
+  outdate(3)=dd
+  outdate(4)=hh
+
+end subroutine
