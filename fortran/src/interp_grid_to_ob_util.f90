@@ -12,7 +12,7 @@ module interp_util
   integer(i_kind),parameter :: nlon=1728_i_kind	
   integer(i_kind),parameter :: nlat=1440_i_kind
   integer(i_kind),parameter :: nsig=63_i_kind  
-  integer(i_kind),parameter :: ntime=1_i_kind  
+!  integer(i_kind),parameter :: ntime=2_i_kind  
   integer(i_kind) :: nxtilde,nytilde
   real(r_kind)    :: rlambda0,pihalf,sign_pole,atilde_x,atilde_y,btilde_x,btilde_y
   real(r_kind)    :: rlon_min_dd,rlon_max_dd,rlat_min_dd,rlat_max_dd

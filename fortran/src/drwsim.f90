@@ -24,18 +24,20 @@ program drwsim
                     num_badrange=izero,ibadazm=izero                                                                                                                                                            
 
 !--General declarations
-  integer(i_kind) :: ierror,lunrad,i,j,k,v,na,nb,nelv,nvol, &
+  integer(i_kind) :: ierror,lunrad,i,j,k,v,na,nb,nvol, &
                      ikx,mins_an,mins_ob,lu,n,iret
   integer(i_kind) :: maxobs,nchanl,ilat,ilon,maxgate,rad_nelv,cm
 
   integer(i_kind),dimension(5) :: obdate,iadate,intdate
+  integer(i_kind),dimension(4) :: ndate
   character(4) :: yyyy
-  character(2) :: mm,dd,hh,mn,fhr
+  character(2) :: mm,dd,hh,mn
+  character(10):: fhr
   character(10)             :: idate
   real(r_kind),dimension(nsig) :: zges,hges
   real(r_kind) :: azm,cosazm,sinazm,costilt,sintilt,cosazm_earth,sinazm_earth
-  real(r_kind) :: ugesin,vgesin,wgesin
-  real(r_kind) :: zsges,ddiff,observation,rms,bias,sumrms,sumbias
+  real(r_kind) :: ugesin,vgesin,wgesin,dbzgesin
+  real(r_kind) :: zsges,psfcsges,ddiff,observation,rms,bias,sumrms,sumbias
   real(r_kind) :: sin2,termg,termr,termrg,zob,dpres
   real(r_kind) :: a,b,c,ha,epsh,h,aactual,a43,thistilt,x
   real(r_kind) :: thistiltr,selev0,celev0,thisrange,this_stahgt,thishgt
@@ -43,13 +45,14 @@ program drwsim
                   clat0,slat0,dlat,dlon,thiserr,thislon,thislat, &
                   rlonloc,rlatloc,rlonglob,rlatglob,timeb,rad_per_meter, &
                   delta_gate,delta_az,radar_x,radar_y,radar_lon,radar_lat
+  real(r_kind),allocatable :: delz(:,:),height(:,:)
   real(r_kind) :: fcstgesin
   real(r_kind),allocatable :: drwpol(:,:,:) !tilt,azm,gate
   real(r_kind) :: radar_twindow                                          
   real(r_kind) :: rmins_an
   real(r_kind) :: rdummy
   integer(i_kind):: idummy
-  integer(i_kind) :: irid,itilt,iazm,igate,itime
+  integer(i_kind) :: irid,itilt,iazm,igate,itime,iazm90,isig
 
 
   character(8) cstaid
@@ -66,30 +69,33 @@ program drwsim
   real(r_kind)    :: mintilt=0.0_r_kind        ! Only use tilt(elevation) angles (deg) >= this number 
   real(r_kind)    :: maxtilt=5.5_r_kind        ! Do no use tilt(elevation) angles (deg) <= this number
   integer(i_kind) :: ithin=4_i_kind            ! Gates to skip for ob thinning (must be >=1)
-  real(r_kind)    :: radartwindow=2.5_r_kind   ! Time window within which to grid observations   (minutes)
-  character(4)    :: staid='KOUN'
-  real(r_kind)    :: mindbz=0_r_kind
-  real(r_kind),dimension(25)    :: tilts=0_r_kind
-  integer(i_kind) :: azimuths=360_i_kind
-  integer(i_kind) :: gatespc=250_i_kind
-  integer(i_kind) :: numgates=400_i_kind
+  character(4)    :: staid='KOUN'              ! default station ID to use
+  real(r_kind)    :: mindbz=0_r_kind           ! minimum dbz value needed at a location to create a drw
+  real(r_kind),dimension(25)    :: tilts=0_r_kind ! initialize the tilts to zero-degrees
+  integer(i_kind) :: azimuths=360_i_kind       ! number of azimuths
+  integer(i_kind) :: gatespc=250_i_kind        ! gate spacing (meters)
+  integer(i_kind) :: numgates=400_i_kind       ! number of gates
+  integer(i_kind) :: ntime=1_i_kind            ! number of times from nc file
+  integer(i_kind) :: nelv=1_i_kind             ! number of elvation tilts
   !----------------------------------------------!
 
   !---------NETCDF VARS---------!
   integer(i_kind) :: ncid3d,ncid2d,ncidgs,ier
-  integer(i_kind) :: pVarId,uVarId,vVarId,wVarId,ghVarId !3d
-  integer(i_kind) :: dbzVarId,hgtVarID                     !2d
-  integer(i_kind) :: glonVarId,glatVarId                 !gs
+  integer(i_kind) :: tVarId,pVarId,uVarId,vVarId,wVarId,ghVarId,dbzVarId !3d
+  integer(i_kind) :: hgtVarID,psfcVarID                                  !2d
+  integer(i_kind) :: glonVarId,glatVarId                                 !gs
   integer(i_kind) :: numsig,numlat,numlon,numtimes
-  real(r_kind),allocatable  ::    pcoord(    :  ) ! (nsig)
+  real(r_kind),allocatable  ::      time(      :) ! (    ,    ,    ,ntime)
+  real(r_kind),allocatable  ::    pcoord(    :  ) ! (    ,    ,nsig,     )
   real(r_kind),allocatable  ::     ges_u(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::     ges_v(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::     ges_w(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  :: geop_hgtl(:,:,:,:) ! (nlon,nlat,nsig,ntime)
-  real(r_kind),allocatable  ::ges_hgtsfc(:,:   )  ! (nlon,nlat,          )
-  real(r_kind),allocatable  ::   ges_dbz(:,:,  :) ! (nlon,nlat,    ,ntime)
-  real(r_kind),allocatable  ::      lons(:,:    ) ! (nlon,nlat           )
-  real(r_kind),allocatable  ::      lats(:,:    ) ! (nlon,nlat           )
+  real(r_kind),allocatable  ::   ges_dbz(:,:,:,:) ! (nlon,nlat,nsig,ntime)
+  real(r_kind),allocatable  ::     ges_z(:,:    ) ! (nlon,nlat,    ,     )
+  real(r_kind),allocatable  ::  ges_psfc(:,:    ) ! (nlon,nlat,    ,     )
+  real(r_kind),allocatable  ::      lons(:,:    ) ! (nlon,nlat,    ,     )
+  real(r_kind),allocatable  ::      lats(:,:    ) ! (nlon,nlat,    ,     )
   !----------------------------------------------!
 
   !---------GLOBAL RADAR CSV FILE VARS---------!
@@ -100,7 +106,7 @@ program drwsim
 
 
   !---------BUFR VARS--------------------------!
-  integer(i_kind) :: itiltbufr,iazmbufr,igatebufr
+  integer(i_kind) :: itiltbufr,iazmbufr,igatebufr,iazmbufr90
   character(80) :: bufrfilename,hdstr,obstr
   real(r_double) :: hdr(12)
   real(r_double),allocatable :: obs(:,:)
@@ -111,13 +117,16 @@ program drwsim
   character(10) :: message_type
   character(8) :: cdummy
 
+  !-------------TIMER VARS---------------------!
+  integer(i_kind) :: time_array_0(8), time_array_1(8),hrs,mins,secs
+  real(r_kind)    :: start_time,finish_time,total_time
 
 
   character(len=120)  :: datapath
   character(len=120)  :: nesteddata3d,nesteddata2d,nestedgrid,radarcsv
   character(len=120)  :: bufroutfile
 
-  namelist/drw/iadate,radartwindow,nesteddata3d,nesteddata2d,nestedgrid,bufroutfile,&
+  namelist/drw/iadate,ntime,nelv,nesteddata3d,nesteddata2d,nestedgrid,bufroutfile,&
                mintilt,maxtilt,staid,mindbz,tilts,maxobrange,minobrange,azimuths,ithin,&
                gatespc,datapath,diagprint,diagverbose,radarcsv
 
@@ -126,6 +135,10 @@ program drwsim
 !                            END OF ALL DECLARATIONS
 !                            !
 !--------------------------------------------------------------------------------------!
+
+  !--Call Timer
+  call date_and_time(values=time_array_0)
+  start_time = time_array_0(5)*3600 + time_array_0(6)*60 + time_array_0(7) + time_array_0(8)*0.001
 
   !--Set up the constants module used here
   call init_constants_derived
@@ -165,7 +178,6 @@ program drwsim
      print *, "mintilt     ",mintilt
      print *, "maxtilt     ",maxtilt
      print *, "mindbz      ",mindbz
-     print *, "radartwindow",radartwindow
      print *, "datapath:",datapath
      print *, "nesteddata3d:",nesteddata3d
      print *, "nesteddata2d:",nesteddata2d
@@ -208,6 +220,15 @@ program drwsim
   ier=nf90_open(nesteddata3d,nf90_NoWrite,ncid3d)
   if(ier /= nf90_NoErr) STOP "ERROR READ NETCDF STOP!"
 
+  ! time
+  allocate(time(ntime))
+  if(diagprint .and. diagverbose >= 2) print *, "Reading time"
+  pcoord=0.0_r_kind !initialize
+  ier=nf90_inq_varid(ncid3d,"time",tVarId)
+  if(ier /= nf90_NoErr) STOP "ERROR INQ time NETCDF STOP!"
+  ier=nf90_get_var(ncid3d,tVarId,time)
+  if(ier /= nf90_NoErr) STOP "ERROR GET time NETCDF STOP!"
+
   ! pcoord
   allocate(pcoord(nsig))
   if(diagprint .and. diagverbose >= 2) print *, "Reading pcoord"
@@ -216,6 +237,8 @@ program drwsim
   if(ier /= nf90_NoErr) STOP "ERROR INQ pcoord NETCDF STOP!"
   ier=nf90_get_var(ncid3d,pVarId,pcoord)
   if(ier /= nf90_NoErr) STOP "ERROR GET pcoord NETCDF STOP!"
+  !--convert from mb to Pa
+  pcoord=pcoord*100.0_r_kind
 
   ! u
   allocate(ges_u(nlon,nlat,nsig,ntime))
@@ -223,7 +246,7 @@ program drwsim
   ges_u=0.0_r_kind !initialize
   ier=nf90_inq_varid(ncid3d,"ucomp",uVarId)
   if(ier /= nf90_NoErr) STOP "ERROR INQ ges_u NETCDF STOP!"
-  ier=nf90_get_var(ncid3d,uVarId,ges_u)!,start=(/1,1,1,idummy/))
+  ier=nf90_get_var(ncid3d,uVarId,ges_u)
   if(ier /= nf90_NoErr) STOP "ERROR GET ges_u NETCDF STOP!"
 
   ! v
@@ -244,7 +267,7 @@ program drwsim
   ier=nf90_get_var(ncid3d,wVarId,ges_w)
   if(ier /= nf90_NoErr) STOP "ERROR GET ges_w NETCDF STOP!"
 
-  ! geop_hgtl
+  ! geop_hgtl - note this field may not be the correct one to use...
   allocate(geop_hgtl(nlon,nlat,nsig,ntime))
   if(diagprint .and. diagverbose >= 2) print *, "Reading geop_hgtl"
   geop_hgtl=0.0_r_kind !initialize
@@ -252,6 +275,16 @@ program drwsim
   if(ier /= nf90_NoErr) STOP "ERROR INQ geop_hgtl NETCDF STOP!"
   ier=nf90_get_var(ncid3d,ghVarId,geop_hgtl)
   if(ier /= nf90_NoErr) STOP "ERROR GET geop_hgtl NETCDF STOP!"
+!  geop_hgtl=geop_hgtl*grav
+
+!  ! dbz - which doesn't exist in the file yet...
+!  allocate(ges_dbz(nlon,nlat,nsig,ntime))
+!  if(diagprint .and. diagverbose >= 2) print *, "Reading ges_dbz"
+!  ges_dbz=0.0_r_kind !initialize
+!  ier=nf90_inq_varid(ncid3d,"reflectivity", dbzVarId)
+!  if(ier /= nf90_NoErr) STOP "ERROR INQ ges_dbz NETCDF STOP!"
+!  ier=nf90_get_var(ncid3d,dbzVarId,ges_dbz)
+!  if(ier /= nf90_NoErr) STOP "ERROR GET ges_dbz NETCDF STOP!"
 
   ! close file
   if(diagprint .and. diagverbose >= 1) print *, "Closing nesteddata3d"
@@ -264,23 +297,24 @@ program drwsim
   ier=nf90_open(nesteddata2d,nf90_NoWrite,ncid2d)
   if(ier /= nf90_NoErr) STOP "ERROR READ NETCDF STOP!"
 
-  ! dbz - which doesn't exist in the file yet...
-  allocate(ges_dbz(nlon,nlat,ntime))
-  if(diagprint .and. diagverbose >= 2) print *, "Reading ges_dbz"
-  ges_dbz=0.0_r_kind !initialize
-  ier=nf90_inq_varid(ncid2d,"PRATEsfc", dbzVarId)
-  if(ier /= nf90_NoErr) STOP "ERROR INQ ges_dbz NETCDF STOP!"
-  ier=nf90_get_var(ncid2d,dbzVarId,ges_dbz)
-  if(ier /= nf90_NoErr) STOP "ERROR GET ges_dbz NETCDF STOP!"
-
-  ! z
-  allocate(ges_hgtsfc(nlon,nlat))
-  if(diagprint .and. diagverbose >= 2) print *, "Reading ges_hgtsfc"
-  ges_hgtsfc=0.0_r_kind !initialize
+  ! z - note this field may not be the correct one to use...
+  allocate(ges_z(nlon,nlat))
+  if(diagprint .and. diagverbose >= 2) print *, "Reading ges_z"
+  ges_z=0.0_r_kind !initialize
   ier=nf90_inq_varid(ncid2d,"HGTsfc", hgtVarID)
   if(ier /= nf90_NoErr) STOP "ERROR INQ hgtsfc NETCDF STOP!"
-  ier=nf90_get_var(ncid2d,hgtVarID,ges_hgtsfc)
+  ier=nf90_get_var(ncid2d,hgtVarID,ges_z)
   if(ier /= nf90_NoErr) STOP "ERROR GET hgtsfc NETCDF STOP!"
+  !ges_z=ges_z/grav
+
+  ! psfc
+  allocate(ges_psfc(nlon,nlat))
+  if(diagprint .and. diagverbose >= 2) print *, "Reading ges_psfc"
+  ges_psfc=0.0_r_kind !initialize
+  ier=nf90_inq_varid(ncid2d,"PRESsfc", psfcVarID)
+  if(ier /= nf90_NoErr) STOP "ERROR INQ psfc NETCDF STOP!"
+  ier=nf90_get_var(ncid2d,psfcVarID,ges_psfc)
+  if(ier /= nf90_NoErr) STOP "ERROR GET psfc NETCDF STOP!"
 
   ! close file
   if(diagprint .and. diagverbose >= 1) print *, "Closing nesteddata2d"
@@ -313,18 +347,53 @@ program drwsim
   if(diagprint .and. diagverbose >= 1) print *, "Closing nestedgrid"
   ier=nf90_close(ncidgs)
   if(ier /= nf90_NoErr) STOP "ERROR CLOSE GRID SPEC NETCDF STOP!"
-  
+ 
 
-   if(diagprint .and. diagverbose >= 3) then
-      print *, maxval(     ges_u(:,:,:,:)), minval(     ges_u(:,:,:,:)) 
-      print *, maxval(     ges_v(:,:,:,:)), minval(     ges_v(:,:,:,:))
-      print *, maxval(     ges_w(:,:,:,:)), minval(     ges_w(:,:,:,:)) 
-      print *, maxval( geop_hgtl(:,:,:,:)), minval( geop_hgtl(:,:,:,:)) 
-      print *, maxval(   ges_dbz(:,:,  :)), minval(   ges_dbz(:,:,  :)) 
-      print *, maxval(      glon(:,:    )), minval(      glon(:,:    ))
-      print *, maxval(      glat(:,:    )), minval(      glat(:,:    ))
-      print *, maxval(ges_hgtsfc(:,:    )), minval(ges_hgtsfc(:,:    )) 
+  !--I think you need to add each "delz" up to the get height at the associated
+  !pressure level. Also, start from the bottom (level=63) and work your way up.
+  allocate(height(nlon,nlat),delz(nlon,nlat)) 
+  do itime=1,ntime
+     height = zero
+     do isig=nsig,1,-1
+        delz                      = geop_hgtl(:,:,isig,itime)
+        geop_hgtl(:,:,isig,itime) = height + delz
+        height                    = geop_hgtl(:,:,isig,itime)
+     end do
+  end do
+
+  !--subtract terrain height
+  do itime=1,ntime 
+     do isig=1,nsig
+        geop_hgtl(:,:,isig,itime) = geop_hgtl(:,:,isig,itime) - ges_z(:,:)
+     end do
+  end do
+
+   if(diagprint .and. diagverbose >= 2) then
+      print *,"time     ", maxval(     time(      :)), minval(     time(      :)) 
+      print *,"pcoord   ", maxval(   pcoord(    :  )), minval(   pcoord(    :  )) 
+      print *,"ges_u    ", maxval(    ges_u(:,:,:,:)), minval(    ges_u(:,:,:,:)) 
+      print *,"ges_v    ", maxval(    ges_v(:,:,:,:)), minval(    ges_v(:,:,:,:))
+      print *,"ges_w    ", maxval(    ges_w(:,:,:,:)), minval(    ges_w(:,:,:,:)) 
+      print *,"geop_hgtl", maxval(geop_hgtl(:,:,:,:)), minval(geop_hgtl(:,:,:,:)) 
+!      print *,"ges_dbz  ", maxval(  ges_dbz(:,:,:,:)), minval(  ges_dbz(:,:,:,:)) 
+      print *,"glon     ", maxval(     glon(:,:    )), minval(     glon(:,:    ))
+      print *,"glat     ", maxval(     glat(:,:    )), minval(     glat(:,:    ))
+      print *,"ges_z    ", maxval(    ges_z(:,:    )), minval(    ges_z(:,:    )) 
+      print *,"ges_psfc ", maxval( ges_psfc(:,:    )), minval( ges_psfc(:,:    )) 
    end if
+
+   !--Make sure we're not missing fields.
+   if(maxval(     time(      :)) == 0 .and. minval(     time(      :)) == 0) STOP 'MISSING TIME' 
+   if(maxval(   pcoord(    :  )) == 0 .and. minval(   pcoord(    :  )) == 0) STOP 'MISSING PCOORD' 
+   if(maxval(    ges_u(:,:,:,:)) == 0 .and. minval(    ges_u(:,:,:,:)) == 0) STOP 'MISSING U'  
+   if(maxval(    ges_v(:,:,:,:)) == 0 .and. minval(    ges_v(:,:,:,:)) == 0) STOP 'MISSING V' 
+   if(maxval(    ges_w(:,:,:,:)) == 0 .and. minval(    ges_w(:,:,:,:)) == 0) STOP 'MISSING W' 
+   if(maxval(geop_hgtl(:,:,:,:)) == 0 .and. minval(geop_hgtl(:,:,:,:)) == 0) STOP 'MISSING GEOPOTHGT' 
+!   if(maxval(  ges_dbz(:,:,:,:)) == 0 .and. minval(  ges_dbz(:,:,:,:)) == 0) STOP 'MISSING DBZ' 
+   if(maxval(     glon(:,:    )) == 0 .and. minval(     glon(:,:    )) == 0) STOP 'MISSING GLON' 
+   if(maxval(     glat(:,:    )) == 0 .and. minval(     glat(:,:    )) == 0) STOP 'MISSING GLAT' 
+   if(maxval(    ges_z(:,:    )) == 0 .and. minval(    ges_z(:,:    )) == 0) STOP 'MISSING HGTSFC' 
+   if(maxval( ges_psfc(:,:    )) == 0 .and. minval( ges_psfc(:,:    )) == 0) STOP 'MISSING PRESsfc'
    
   !set up information needed to interpolate model to observation
   !*********************************
@@ -353,209 +422,248 @@ program drwsim
   rmins_an=mins_an             !convert to real number
 
  
-  nelv=25
-  rad_nelv=25 
-!  loopOVERtime: do itime=1,ntime
-  loopOVERradars: do irid=1,numradars 
-     allocate(drwpol(1,360,numgates))
-     drwpol=-999.0_r_kind !Initialize/Reset the drw polar field
-     radar_location=.true. ! logical to only compute radar x,y once later in loop.
-     ifKGRK: if(adjustl(trim(dfid(irid)))=="KGRK") then
-        stahgt=dfheight(irid)
-        rlon0=dflon(irid)*deg2rad
-        rlat0=dflat(irid)*deg2rad
-        clat0=cos(rlat0)
-        slat0=sin(rlat0)
-        loopOVERtilts:    do itilt=1,1!nelv
-           bufrisopen=.false.   !Initialize bufr file as closed.
-           thistilt=tilts(itilt)
-           thistiltr=thistilt*deg2rad
-           celev0=cos(thistiltr)
-           selev0=sin(thistiltr)
-           loopOVERazimuths: do iazm=1,360
-              if(diagprint .and. diagverbose >= 1) print *,iazm," out of 360-deg"
-              thisazimuth=90.0_r_kind-float(iazm) ! 90-azm to be consistent with l2rwbufr
-              if(thisazimuth>=360) thisazimuth=thisazimuth-360
-              if(thisazimuth<zero) thisazimuth=thisazimuth+360
-              thisazimuthr=thisazimuth*deg2rad
-              loopOVERgates: do igate=1,numgates     
-                 inside=.false.
-                 if(igate*gatespc >= minobrange .and. igate*gatespc <= maxobrange) inside=.true.
-                 ifinside: if(inside) then
-                    !--Find observation height using method from read_l2bufr_mod.f90 
-                    thisrange=igate*gatespc
-                    aactual=(rearth+stahgt)
-                    a43=aactual*four_thirds
-                    b   = thisrange*(thisrange+two*aactual*selev0)
-                    c   = sqrt(aactual*aactual+b)
-                    ha  = b/(aactual+c)
-                    epsh=(thisrange*thisrange-ha*ha)/(r8*aactual)
-                    h=ha-epsh
-                    thishgt=stahgt+h
-                    dpres=thishgt !store the absolute ob height (m) in dpres.                   
-                    !--Find observation location using method fromread_l2bufr_mod.f90
-                    !-Get corrected tilt angle
-                    celev=celev0
-                    selev=selev0
-                    celev=a43*celev0/(a43+h)
-                    selev=(thisrange*thisrange+h*h+two*a43*h)/(two*thisrange*(a43+h))
-                    gamma=half*thisrange*(celev0+celev)
-                    !-Get earth lat lon of ob
-                    rad_per_meter=one/rearth
-                    rlonloc=rad_per_meter*gamma*cos(thisazimuthr)
-                    rlatloc=rad_per_meter*gamma*sin(thisazimuthr)
-                    call invtllv(rlonloc,rlatloc,rlon0,clat0,slat0,rlonglob,rlatglob)
-                    !-Find grid relative location of the radar.
-                    if(radar_location) then
-                       radar_lat=dflat(irid) !lat/lons stored as deg.
-                       radar_lon=dflon(irid)
-                       if(radar_lon>=360) radar_lon=radar_lon-360 !fix if needed.
-                       if(radar_lon<zero) radar_lon=radar_lon+360
-                       radar_lon=radar_lon*deg2rad !convert to radians.
-                       radar_lat=radar_lat*deg2rad
-                       call tll2xy(radar_lon,radar_lat,radar_x,radar_y)
-                       if(diagprint .and. diagverbose >= 3) print *, "Radar x,y location is:",radar_x,radar_y 
-                       if(diagprint .and. diagverbose >= 3) print *, "Radar lon,lat is     :",radar_lon*rad2deg,radar_lat*rad2deg
-                       radar_location=.false. ! turn off get radar x/y until next radar is processed.
-                    end if
-                    !-Find grid relative location of the ob.
-                    thislat=rlatglob*rad2deg
-                    thislon=rlonglob*rad2deg
-                    if(thislon>=360) thislon=thislon-360
-                    if(thislon<zero) thislon=thislon+360
-                    thislat=thislat*deg2rad
-                    thislon=thislon*deg2rad
-                    call tll2xy(thislon,thislat,dlon,dlat)
-                    if(diagprint .and. diagverbose >= 5) print *, "ob x,y location is   :",dlon,dlat
-                    if(diagprint .and. diagverbose >= 5) print *, "ob lon,lat is        :",thislon*rad2deg,thislat*rad2deg
+  !nelv=25
+  !rad_nelv=25 
+  loopOVERtime: do itime=2,2 !ntime
+     !----------------------------------------------------------------
+     !--------------- NEED SOMETHING HERE TO GET CURRENT DATE --------
+     !----------------------------------------------------------------
+     write(*,*) "Date: ",iadate(1),iadate(2),iadate(3),iadate(4)
+     write(*,*)time(itime)*24 !hours since iadate
+     loopOVERradars: do irid=1,numradars 
+        allocate(drwpol(nelv,360,numgates))
+        drwpol=-999.0_r_kind !Initialize/Reset the drw polar field
+        radar_location=.true. ! logical to only compute radar x,y once later in loop.
+        ifKGRK: if(adjustl(trim(dfid(irid)))==trim(adjustl(staid))) then
+           stahgt=dfheight(irid)
+           rlon0=dflon(irid)*deg2rad
+           rlat0=dflat(irid)*deg2rad
+           clat0=cos(rlat0)
+           slat0=sin(rlat0)
+           loopOVERtilts:    do itilt=1,nelv
+              bufrisopen=.false.   !Initialize bufr file as closed.
+              thistilt=tilts(itilt)
+              thistiltr=thistilt*deg2rad
+              celev0=cos(thistiltr)
+              selev0=sin(thistiltr)
+              loopOVERazimuths: do iazm=1,360
+                 if(diagprint .and. diagverbose >= 1) then
+                    write(*,'(a8,f4.1,i4,a20)'),"itilt = ",tilts(itilt),iazm," out of 360-deg"
+                 end if
+                 thisazimuth=90.0_r_kind-float(iazm) ! 90-azm to be consistent with l2rwbufr
+                 if(thisazimuth>=r360) thisazimuth=thisazimuth-r360
+                 if(thisazimuth<zero) thisazimuth=thisazimuth+r360
+                 thisazimuthr=thisazimuth*deg2rad
+                 loopOVERgates: do igate=1,numgates     
+                    inside=.false.
+                    if(igate*gatespc >= minobrange .and. igate*gatespc <= maxobrange) inside=.true.
+                    ifinside: if(inside) then
+                       !--Find observation height using method from read_l2bufr_mod.f90 
+                       thisrange=igate*gatespc
+                       aactual=(rearth+stahgt)
+                       a43=aactual*four_thirds
+                       b   = thisrange*(thisrange+two*aactual*selev0)
+                       c   = sqrt(aactual*aactual+b)
+                       ha  = b/(aactual+c)
+                       epsh=(thisrange*thisrange-ha*ha)/(r8*aactual)
+                       h=ha-epsh
+                       thishgt=stahgt+h
+                       dpres=thishgt !store the absolute ob height (m) in dpres.                   
+                       !--Find observation location using method fromread_l2bufr_mod.f90
+                       !-Get corrected tilt angle
+                       celev=celev0
+                       selev=selev0
+                       celev=a43*celev0/(a43+h)
+                       selev=(thisrange*thisrange+h*h+two*a43*h)/(two*thisrange*(a43+h))
+                       gamma=half*thisrange*(celev0+celev)
+                       !-Get earth lat lon of ob
+                       rad_per_meter=one/rearth
+                       rlonloc=rad_per_meter*gamma*cos(thisazimuthr)
+                       rlatloc=rad_per_meter*gamma*sin(thisazimuthr)
+                       call invtllv(rlonloc,rlatloc,rlon0,clat0,slat0,rlonglob,rlatglob)
+                       !-Find grid relative location of the radar.
+                       if(radar_location) then
+                          radar_lat=dflat(irid) !lat/lons stored as deg.
+                          radar_lon=dflon(irid)
+                          if(radar_lon>=r360) radar_lon=radar_lon-r360 !fix if needed.
+                          if(radar_lon<zero) radar_lon=radar_lon+r360
+                          radar_lon=radar_lon*deg2rad !convert to radians.
+                          radar_lat=radar_lat*deg2rad
+                          call tll2xy(radar_lon,radar_lat,radar_x,radar_y)
+                          if(diagprint .and. diagverbose >= 3) print *, "Radar x,y location is:",radar_x,radar_y 
+                          if(diagprint .and. diagverbose >= 3) print *, "Radar lon,lat is     :",radar_lon*rad2deg,radar_lat*rad2deg
+                          radar_location=.false. ! turn off get radar x/y until next radar is processed.
+                       end if
+                       !-Find grid relative location of the ob.
+                       thislat=rlatglob*rad2deg
+                       thislon=rlonglob*rad2deg
+                       if(thislon>=r360) thislon=thislon-r360
+                       if(thislon<zero) thislon=thislon+r360
+                       thislat=thislat*deg2rad
+                       thislon=thislon*deg2rad
+                       call tll2xy(thislon,thislat,dlon,dlat)
+                       if(diagprint .and. diagverbose >= 5) print *, "ob x,y location is   :",dlon,dlat
+                       if(diagprint .and. diagverbose >= 5) print *, "ob lon,lat is        :",thislon*rad2deg,thislat*rad2deg
 
 !**********************************DO WIND ROTATION IF RADIAL WIND****!
 !   SHOULD NOT BE NEEDED FOR FV3???
 !**********************************DO WIND ROTATION IF RADIAL WIND****!
+                    
+                       call tintrp2a_single_level(ges_z,zsges,dlon,dlat)
+                       call tintrp2a_single_level(ges_psfc,psfcsges,dlon,dlat)
+                       dpres=dpres-zsges      !  remove terrain height from ob absolute height
+                       call tintrp2a(geop_hgtl(:,:,:,itime),hges,dlon,dlat,nsig)  
+!                  !    Convert geopotential height at layer midpoints to
+!                  !    geometric height using
+!                  !    equations (17, 20, 23) in MJ Mahoney's note "A
+!                  !    discussion of various
+!                  !    measures of altitude" (2001).  Available on the web at
+!                  !    http://mtp.jpl.nasa.gov/notes/altitude/altitude.html
+!                  !    http://archive.is/reKhz
+!                  !
+!                  !    termg  = equation 17
+!                  !    termr  = equation 21
+!                  !    termrg = first term in the denominator of equation 23
+!                  !    zges   = equation 23
+                       sin2  = sin(thislat)*sin(thislat)
+                       termg = grav_equator * ((one+somigliana*sin2)/sqrt(one-eccentricity*eccentricity*sin2))
+                       termr = semi_major_axis /(one + flattening + grav_ratio-  two*flattening*sin2)
+                       termrg = (termg/grav)*termr
+                       do n=1,nsig
+                          zges(n) = (termr*hges(n)) / (termrg-hges(n))  ! eq (23)
+                       end do
+                       if(diagprint .and. diagverbose >=1 .and. iazm==360 .and. igate==20) then
+                           write(*,*) "dpres   = ",dpres,igate
+                           write(*,*) "thishgt = ",thishgt,igate
+                           write(*,*) "zsges   = ",zsges,igate
+                       end if
+                  !    Convert observation height (in dpres) from meters to grid relative units.
+                       !call grdcrd(dpres,1,zges,nsig,-1)
+                       call grdcrd1(dpres,zges,nsig,-1)
+                    
+                       if(diagprint .and. diagverbose >=1 .and. iazm==360 .and. igate==20) then
+                           write(*,*) "After grdcrd"
+                           write(*,*) "dpres   = ",dpres,igate
+                           write(*,*) "thishgt = ",thishgt,igate
+                           write(*,*) "zsges   = ",zsges,igate
+                           write(*,*) "zges       = ",zges
+                           write(*,*) "pcoord     = ",pcoord
+                           write(*,*) "ges_psfc   = ",psfcsges
+                           !write(*,*) "geop_hgtl  = ",geop_hgtl(thislon,thislat,:,1)
+                       end if
+!                     ! Interpolate guess dbz to observation location - cycle if below threshold.
+!                       call tintrp3(ges_dbz(:,:,:,itime),dbzgesin,dlon,dlat,dpres)
+!                       dbzCheck: if(dbzgesin >= mindbz .or. .true.) then
+                     !    Interpolate guess wind to observation location                                  
+                          call tintrp3(ges_u(:,:,:,itime),ugesin,dlon,dlat,dpres)
+                          call tintrp3(ges_v(:,:,:,itime),vgesin,dlon,dlat,dpres) !should these be dlat,dlon?
+                          call tintrp3(ges_w(:,:,:,itime),wgesin,dlon,dlat,dpres)
+                     !    Convert guess u,v,w wind components to radial value
+                          cosazm  = cos(thisazimuthr)! cos(azimuth angle)                       
+                          sinazm  = sin(thisazimuthr)! sin(azimuth angle)                       
+                          costilt = cos(thistiltr)   ! cos(tilt angle)
+                          sintilt = sin(thistiltr)   ! sin(tilt angle)
+                     !-------------WIND FORWARD MODEL-----------------------------------------!   
+                          iazm90=90-iazm
+                          if(iazm90>=r360) iazm90=iazm90-r360
+                          if(iazm90< zero) iazm90=iazm90+r360
+                          drwpol(itilt,iazm,igate) = ugesin*cosazm*costilt  +vgesin*sinazm*costilt  +wgesin*sintilt 
+!                       end if dbzCheck
+                    end if ifinside
+                 end do loopOVERgates
+              end do loopOVERazimuths
+           end do loopOVERtilts
 
-                    call tintrp2a_single_level(ges_hgtsfc,zsges,dlon,dlat)
-                    !dpres=dpres-zsges      !  remove terrain height from ob absolute height
-                    call tintrp2a(geop_hgtl,hges,dlon,dlat,nsig)  
-               !    Convert geopotential height at layer midpoints to
-               !    geometric height using
-               !    equations (17, 20, 23) in MJ Mahoney's note "A
-               !    discussion of various
-               !    measures of altitude" (2001).  Available on the web at
-               !    http://mtp.jpl.nasa.gov/notes/altitude/altitude.html
-               !
-               !    termg  = equation 17
-               !    termr  = equation 21
-               !    termrg = first term in the denominator of equation 23
-               !    zges   = equation 23
-                    sin2  = sin(thislat)*sin(thislat)
-                    termg = grav_equator * ((one+somigliana*sin2)/sqrt(one-eccentricity*eccentricity*sin2))
-                    termr = semi_major_axis /(one + flattening + grav_ratio-  two*flattening*sin2)
-                    termrg = (termg/grav)*termr
-                    do n=1,nsig
-                       zges(n) = (termr*hges(n)) / (termrg-hges(n))  ! eq (23)
-                    end do
-                    zsges=(termr*zsges) / (termrg-zsges)  ! eq (23)
-                    dpres=dpres-zsges      !  remove terrain height from ob absolute height
-               !    Convert observation height (in dpres) from meters to grid relative
-               !    units.  Save the observation height in zob for later use.
-                    !zob = dpres
-                    call grdcrd(dpres,1,zges,nsig,-1)
-               !     if(diagprint .and. diagverbose >=1 .and. iazm>=350) print*,"dpres = ",dpres,igate
-               !    Interpolate guess u and v to observation location                                  
-                    call tintrp3(ges_u,ugesin,dlon,dlat,dpres)
-                    call tintrp3(ges_v,vgesin,dlon,dlat,dpres)
-                    call tintrp3(ges_w,wgesin,dlon,dlat,dpres)
-               !    Convert guess u,v,w wind components to radial value
-                    cosazm  = cos(thisazimuthr)! cos(azimuth angle)                       
-                    sinazm  = sin(thisazimuthr)! sin(azimuth angle)                       
-                    costilt = cos(thistiltr)   ! cos(tilt angle)
-                    sintilt = sin(thistiltr)   ! sin(tilt angle)
-               !-------------WIND FORWARD MODEL-----------------------------------------!   
-                    drwpol(itilt,iazm,igate) = ugesin*cosazm*costilt  +vgesin*sinazm*costilt  +wgesin*sintilt 
-   
-                 end if ifinside
-              end do loopOVERgates
-           end do loopOVERazimuths
-        end do loopOVERtilts
-
-        if(diagprint .and. diagverbose >= 2) print*,minval(drwpol),maxval(drwpol)
+           if(diagprint .and. diagverbose >= 2) print*,minval(drwpol),maxval(drwpol)
 
 
-        !-------------BUFFERIZE--------------------------------------------------!
-        if(diagprint .and. diagverbose >= 1) print *,"Writing bufr file for ",trim(dfid(irid))
-        hdstr='SSTN CLON CLAT SELV ANEL YEAR MNTH DAYS HOUR MINU QCRW ANAZ'
-        obstr='DIST125M DMVR DVSW'                     !NL2RW--level 2 radial wind.
-        open(41,file='l2rwbufr.table.csv')        
-        read(41,'(a10)') cdummy !read 1st line which is just a header.
-        do ii=0,23 !00z to 23z -- this starts on the second line of the file.
-           if(ii<iadate(4) .or. ii>iadate(4)) then
-               read(41,'(a10)') cdummy
-           else if(ii==iadate(4)) then
-               read(41,'(a10)') message_type
-               message_type=trim(message_type) 
-           end if
-        end do
-        close(41)
-        if(diagprint .and. diagverbose >= 2) print *, message_type
-        call w3ai15(iadate(1),yyyy,1,4,'')
-        call w3ai15(iadate(2),  mm,1,2,'')
-        call w3ai15(iadate(3),  dd,1,2,'')
-        call w3ai15(iadate(4),  hh,1,2,'')
-        call w3ai15(iadate(5),  mn,1,2,'')
-        fhr='00'
-        idate=trim(yyyy)//trim(mm)//trim(dd)//trim(hh)
-        subset=trim(adjustl(message_type))
-        chdr   = dfid(irid)       !SSTN - RADAR STATION IDENTIFIER -- uses same memory location as hdr(1)
-        hdr(2) = dflon(irid)      !CLON - LONGITUDE (COARSE ACCURACY)
-        hdr(3) = dflat(irid)      !CLAT - LATITUDE (COARSE ACCURACY)
-        hdr(4) = dfheight(irid)   !SELV - HEIGHT OF STATION
-        !hdr(5) goes in tilt loop below.
-        hdr(6) = iadate(1)        !YEAR - YEAR
-        hdr(7) = iadate(2)        !MNTH - MONTH
-        hdr(8) = iadate(3)        !DAYS - DAY
-        hdr(9) = iadate(4)        !HOUR - HOUR 
-        hdr(10)= 00               !MINU - MINUTE
-        hdr(11)= 1                !QCRW - QUALITY MARK FOR WINDS ALONG RADIAL LINE
-        !hdr(12) goes in azm loop below.
-        bufrfilename=trim(idate)//'_fv3.t'//trim(hh)//'z.drw.bufr'
-        bufrtilt: do itiltbufr=1,1!nelv
-           hdr(5) = tilts(itiltbufr) 
-           if(.not.bufrisopen) then !open a new message for each tilt 
-              open(unit=10,file=trim(bufrfilename),status='unknown',action='write',form='unformatted')
-              open(unit=11,file='l2rwbufr.table',status='old',action='read',form='formatted')
-              call openbf(10,'OUT',11)
-              bufrisopen=.true.
-           end if
-           intdate=iadate(1)*1000000 + iadate(2)*10000 + iadate(3)*100 + iadate(4) ! int(yyyymmddhh)
-           call openmb(10,trim(subset),intdate)
-           bufrazm: do iazmbufr=1,360
-              allocate(obs(3,numgates))
-              obs=-999.0_r_kind ! Initialize as missing values
-              hdr(12)=float(iazmbufr)
-              bufrgate: do igatebufr=1,numgates
-                 obs(1,igatebufr) = igatebufr     !DISTANCE (FROM ANTENNA TO GATE CENTER) IN UNITS OF 250M
-                 obs(2,igatebufr) = drwpol(itiltbufr,iazmbufr,igatebufr)  !DOPPLER MEAN RADIAL VELOC            
-                 obs(3,igatebufr) = 1.0_r_kind                            !DOPPLER VELOCITY SPECTRAL WIDTH
-              end do bufrgate
-              ! encode radial velocity
-              call ufbint(10,hdr,12,1,iret,trim(hdstr))
-              call ufbint(10,obs, 3,numgates,iret,trim(obstr))
-              call writsb(10)
-              deallocate(obs)
-           end do bufrazm
-           call closmg(10) ! close bufr message
-        end do bufrtilt
-        call closbf(10) !close bufr file
-        close(10)       ! close bufr file
-        close(11)       ! close l2rwbufr.table
-        bufrisopen=.false.
+           !-------------BUFFERIZE--------------------------------------------------!
+           if(diagprint .and. diagverbose >= 1) print *,"Writing bufr file for ",trim(dfid(irid))
+           hdstr='SSTN CLON CLAT SELV ANEL YEAR MNTH DAYS HOUR MINU QCRW ANAZ'
+           obstr='DIST125M DMVR DVSW'                     !NL2RW--level 2 radial wind.
+           open(41,file='l2rwbufr.table.csv')        
+           read(41,'(a10)') cdummy !read 1st line which is just a header.
+           do ii=0,23 !00z to 23z -- this starts on the second line of the file.
+              if(ii<iadate(4) .or. ii>iadate(4)) then
+                  read(41,'(a10)') cdummy
+              else if(ii==iadate(4)) then
+                  read(41,'(a10)') message_type
+                  message_type=trim(message_type) 
+              end if
+           end do
+           close(41)
+           if(diagprint .and. diagverbose >= 2) print *, message_type
+           call w3ai15(iadate(1),yyyy,1,4,'')
+           call w3ai15(iadate(2),  mm,1,2,'')
+           call w3ai15(iadate(3),  dd,1,2,'')
+           call w3ai15(iadate(4),  hh,1,2,'')
+           call w3ai15(iadate(5),  mn,1,2,'')
+           !write(fhr,*) time(itime)
+           !fhr=trim(adjustl(fhr))
+           idate=trim(yyyy)//trim(mm)//trim(dd)//trim(hh)
+           subset=trim(adjustl(message_type))
+           chdr   = dfid(irid)       !SSTN - RADAR STATION IDENTIFIER -- uses same memory location as hdr(1)
+           hdr(2) = dflon(irid)      !CLON - LONGITUDE (COARSE ACCURACY)
+           hdr(3) = dflat(irid)      !CLAT - LATITUDE (COARSE ACCURACY)
+           hdr(4) = dfheight(irid)   !SELV - HEIGHT OF STATION
+           !hdr(5) goes in tilt loop below.
+           hdr(6) = iadate(1)        !YEAR - YEAR
+           hdr(7) = iadate(2)        !MNTH - MONTH
+           hdr(8) = iadate(3)        !DAYS - DAY
+           hdr(9) = iadate(4)        !HOUR - HOUR 
+           hdr(10)= 00               !MINU - MINUTE
+           hdr(11)= 1                !QCRW - QUALITY MARK FOR WINDS ALONG RADIAL LINE
+           !hdr(12) goes in azm loop below.
+           bufrfilename=trim(idate)//'_fhr'//'02'//'_fv3.t'//trim(hh)//'z.drw.bufr'
+           bufrtilt: do itiltbufr=1,nelv
+              hdr(5) = tilts(itiltbufr) 
+              if(.not.bufrisopen) then !open a new message for each tilt 
+                 open(unit=10,file=trim(bufrfilename),status='unknown',action='write',form='unformatted')
+                 open(unit=11,file='l2rwbufr.table',status='old',action='read',form='formatted')
+                 call openbf(10,'OUT',11)
+                 bufrisopen=.true.
+              end if
+              intdate=iadate(1)*1000000 + iadate(2)*10000 + iadate(3)*100 + iadate(4) ! int(yyyymmddhh)
+              call openmb(10,trim(subset),intdate)
+              bufrazm: do iazmbufr=1,360
+                 iazmbufr90=90-iazmbufr
+                 if(iazmbufr90>=r360) iazmbufr90=iazmbufr90-r360
+                 if(iazmbufr90< zero) iazmbufr90=iazmbufr90+r360
+                 allocate(obs(3,numgates))
+                 obs=-999.0_r_kind ! Initialize as missing values
+                 hdr(12)=float(iazmbufr90)
+                 bufrgate: do igatebufr=1,numgates
+                    obs(1,igatebufr) = igatebufr     !DISTANCE (FROM ANTENNA TO GATE CENTER) IN UNITS OF 250M
+                    obs(2,igatebufr) = drwpol(itiltbufr,iazmbufr90,igatebufr)  !DOPPLER MEAN RADIAL VELOC 
+                    obs(3,igatebufr) = 1.0_r_kind                            !DOPPLER VELOCITY SPECTRAL WIDTH
+                 end do bufrgate
+                 ! encode radial velocity
+                 call ufbint(10,hdr,12,1,iret,trim(hdstr))
+                 call ufbint(10,obs, 3,numgates,iret,trim(obstr))
+                 call writsb(10)
+                 deallocate(obs)
+              end do bufrazm
+              call closmg(10) ! close bufr message
+           end do bufrtilt
+           call closbf(10) !close bufr file
+           close(10)       ! close bufr file
+           close(11)       ! close l2rwbufr.table
+           bufrisopen=.false.
         
-     end if ifKGRK
-     deallocate(drwpol)
-  end do loopOVERradars 
-!  end do loopOVERtime
+        end if ifKGRK
+        deallocate(drwpol)
+     end do loopOVERradars 
+  end do loopOVERtime
 
-
+  !-Call Timer
+  call date_and_time(values=time_array_1)
+  finish_time = time_array_1(5)*3600 + time_array_1(6)*60 + time_array_1(7) + time_array_1(8)*0.001
+  total_time=finish_time-start_time
+  hrs =int(        total_time/3600.0       )
+  mins=int(    mod(total_time,3600.0)/60.0 )
+  secs=int(mod(mod(total_time,3600.0),60.0))
+  write(*,'(a14,i2.2,a1,i2.2,a1,i2.2)')"Elapsed time:   ",hrs,":",mins,":",secs
+  print *,  "Elapsed time (s) =", total_time
   print *, "end of program" 
 end program drwsim
 
