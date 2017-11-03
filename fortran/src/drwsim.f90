@@ -138,7 +138,6 @@ program drwsim
 
 
   gatespc=gatespc*ithin
-  call w3ai15(gatespc,str_gatespc,1,5,'')
   numgates=int(maxobrange/gatespc) !calculate num gates based on namelist settings.
   nesteddata3d=trim(datapath) // trim(nesteddata3d) !concat strings
   nesteddata2d=trim(datapath) // trim(nesteddata2d)
@@ -597,7 +596,7 @@ program drwsim
            hdr(10)= 00               !MINU - MINUTE
            hdr(11)= 1                !QCRW - QUALITY MARK FOR WINDS ALONG RADIAL LINE
           !hdr(12)- azm loop below.
-           bufrfilename=trim(idate)//'_fv3.t'//trim(hh)//'z_'//adjustl(trim(str_gatespc))//'-m.drw.bufr'
+           bufrfilename=trim(idate)//'_fv3.t'//trim(hh)//'z.drw.bufr'
            bufrtilt: do itiltbufr=1,nelv
               intdate=iadate(1)*1000000 + iadate(2)*10000 + iadate(3)*100 + iadate(4) ! int(yyyymmddhh)
               hdr(5) = tilts(itiltbufr) 
@@ -646,9 +645,13 @@ program drwsim
   mins=int(    mod(total_time,3600.0)/60.0 )
   secs=int(mod(mod(total_time,3600.0),60.0))
   write(*,'(a14,i2.2,a1,i2.2,a1,i2.2)')"Elapsed time:   ",hrs,":",mins,":",secs
-  write(*,*)  "Elapsed time (s) =", total_time
-  write(*,*) "end of program" 
-  write(*,*) "ndata = ",ndata
+  write(*,*) "Elapsed time (s) =", total_time
+  write(*,*) "end of program"
+  write(*,*) 'numgates =',numgates
+  write(*,*) 'numelevs =',nelv
+  write(*,*) 'numazims =',azimuths
+  write(*,*) 'numtimes =',ntime
+  write(*,*) 'ndata    =',ndata
 end program drwsim
 
 
