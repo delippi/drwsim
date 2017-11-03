@@ -11,52 +11,38 @@ program drwsim
 
   implicit none
 
-  integer(i_kind)     :: nread,ndata,nodata,mindat
+  integer(i_kind)     :: ndata,mindat
 
   ! Declare local parameters
   real(r_kind),parameter :: four_thirds = 4.0_r_kind / 3.0_r_kind
   real(r_kind),parameter :: r8          = 8.0_r_kind
   real(r_kind),parameter :: r360        = 360.0_r_kind
 
-!--Counters for diagnostics
- integer(i_kind) :: num_missing=izero, &      !counts 
-                    numbadtime=izero,num_badtilt=izero, &
-                    num_badrange=izero,ibadazm=izero                                                                                                                                                            
-
 !--General declarations
-  integer(i_kind) :: ierror,lunrad,i,j,k,v,na,nb,nvol, &
-                     ikx,mins_an,mins_ob,lu,n,iret
-  integer(i_kind) :: maxobs,nchanl,ilat,ilon,maxgate,rad_nelv,cm
-
-  integer(i_kind),dimension(4) :: obdate,iadate,intdate
+  integer(i_kind) :: n,iret
+  integer(i_kind),dimension(4) :: iadate,intdate
   character(4) :: yyyy
   character(2) :: mm,dd,hh,mn
-  character(10):: fhr
   character(10)             :: idate
   real(r_kind),dimension(nsig) :: zges,hges
-  real(r_kind) :: azm,cosazm,sinazm,costilt,sintilt,cosazm_earth,sinazm_earth
+  real(r_kind) :: cosazm,sinazm,costilt,sintilt
   real(r_kind) :: ugesin,vgesin,wgesin,dbzgesin
-  real(r_kind) :: zsges,psfcsges,ddiff,observation,rms,bias,sumrms,sumbias
-  real(r_kind) :: sin2,termg,termr,termrg,zob,dpres
-  real(r_kind) :: a,b,c,ha,epsh,h,aactual,a43,thistilt,x
+  real(r_kind) :: zsges,psfcsges
+  real(r_kind) :: sin2,termg,termr,termrg,dpres
+  real(r_kind) :: b,c,ha,epsh,h,aactual,a43,thistilt
   real(r_kind) :: thistiltr,selev0,celev0,thisrange,this_stahgt,thishgt
   real(r_kind) :: celev,selev,gamma,thisazimuthr,thisazimuth,rlon0,rlat0,stahgt, &
-                  clat0,slat0,dlat,dlon,thiserr,thislon,thislat, &
-                  rlonloc,rlatloc,rlonglob,rlatglob,timeb,rad_per_meter, &
-                  delta_gate,delta_az,radar_x,radar_y,radar_lon,radar_lat
+                  clat0,slat0,dlat,dlon,thislon,thislat, &
+                  rlonloc,rlatloc,rlonglob,rlatglob,rad_per_meter, &
+                  radar_x,radar_y,radar_lon,radar_lat
   real(r_kind),allocatable :: delz(:,:),height(:,:)
-  real(r_kind) :: fcstgesin
   real(r_kind),allocatable :: drwpol(:,:,:) !tilt,azm,gate
-  real(r_kind) :: radar_twindow                                          
-  real(r_kind) :: rmins_an
-  real(r_kind) :: rdummy
-  integer(i_kind):: idummy
   integer(i_kind) :: irid,itilt,iazm,igate,itime,iazm90,isig
 
 
-  character(8) cstaid
   character(4) this_staid
-  logical   :: outside,diagprint,inside,bufrisopen,radar_location
+  character(5) str_gatespc
+  logical   :: diagprint,inside,bufrisopen,radar_location
   integer   :: diagverbose
 
 !  type(radar),allocatable :: strct_in_vel(:,:),rad(:)
@@ -83,7 +69,6 @@ program drwsim
   integer(i_kind) :: tVarId,pVarId,uVarId,vVarId,wVarId,ghVarId,dbzVarId !3d
   integer(i_kind) :: hgtVarID,psfcVarID                                  !2d
   integer(i_kind) :: glonVarId,glatVarId                                 !gs
-  integer(i_kind) :: numsig,numlat,numlon,numtimes
   real(r_kind),allocatable  ::      time(      :) ! (    ,    ,    ,ntime)
   real(r_kind),allocatable  ::    pcoord(    :  ) ! (    ,    ,nsig,     )
   real(r_kind),allocatable  ::     ges_u(:,:,:,:) ! (nlon,nlat,nsig,ntime)
@@ -93,8 +78,8 @@ program drwsim
   real(r_kind),allocatable  ::   ges_dbz(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::     ges_z(:,:    ) ! (nlon,nlat,    ,     )
   real(r_kind),allocatable  ::  ges_psfc(:,:    ) ! (nlon,nlat,    ,     )
-  real(r_kind),allocatable  ::      lons(:,:    ) ! (nlon,nlat,    ,     )
-  real(r_kind),allocatable  ::      lats(:,:    ) ! (nlon,nlat,    ,     )
+!  real(r_kind),allocatable  ::      lons(:,:    ) ! (nlon,nlat,    ,     )
+!  real(r_kind),allocatable  ::      lats(:,:    ) ! (nlon,nlat,    ,     )
   !----------------------------------------------!
 
   !---------GLOBAL RADAR CSV FILE VARS---------!
@@ -153,6 +138,7 @@ program drwsim
 
 
   gatespc=gatespc*ithin
+  call w3ai15(gatespc,str_gatespc,1,5,'')
   numgates=int(maxobrange/gatespc) !calculate num gates based on namelist settings.
   nesteddata3d=trim(datapath) // trim(nesteddata3d) !concat strings
   nesteddata2d=trim(datapath) // trim(nesteddata2d)
@@ -424,7 +410,8 @@ program drwsim
         allocate(drwpol(nelv,360,numgates))
         drwpol=-999.0_r_kind !Initialize/Reset the drw polar field
         radar_location=.true. ! logical to only compute radar x,y once later in loop.
-        ifKGRK: if(adjustl(trim(dfid(irid)))==trim(adjustl(staid))) then
+        this_staid=adjustl(trim(dfid(irid)))
+        ifKGRK: if(this_staid==trim(adjustl(staid))) then
            stahgt=dfheight(irid)
            rlon0=dflon(irid)*deg2rad
            rlat0=dflat(irid)*deg2rad
@@ -543,7 +530,7 @@ program drwsim
                            write(*,*) "ges_psfc   = ",psfcsges
                            !write(*,*) "geop_hgtl  = ",geop_hgtl(thislon,thislat,:,1)
                        end if
-!                     ! Interpolate guess dbz to observation location - cycle if below threshold.
+                     ! Interpolate guess dbz to observation location - cycle if below threshold.
 !                       call tintrp3(ges_dbz(:,:,:,itime),dbzgesin,dlon,dlat,dpres)
 !                       dbzCheck: if(dbzgesin >= mindbz .or. .true.) then
                      !    Interpolate guess wind to observation location                                  
@@ -571,7 +558,11 @@ program drwsim
 
 
            !-------------BUFFERIZE--------------------------------------------------!
-           if(diagprint .and. diagverbose >= 1) write(*,*)"Writing bufr file for ",trim(dfid(irid))
+           !    At this point we have observations from all radars at every scan
+           ! angle at a single time. We will put this information in its own bufr
+           ! file hence this is contained within loopOVERtime.
+           !
+           write(*,*)"Writing bufr file for ",trim(dfid(irid))
            hdstr='SSTN CLON CLAT SELV ANEL YEAR MNTH DAYS HOUR MINU QCRW ANAZ'
            obstr='DIST125M DMVR DVSW'                     !NL2RW--level 2 radial wind.
            open(41,file='l2rwbufr.table.csv')        
@@ -591,23 +582,21 @@ program drwsim
            call w3ai15(iadate(3),  dd,1,2,'')
            call w3ai15(iadate(4),  hh,1,2,'')
            call w3ai15(iadate(5),  mn,1,2,'')
-           !write(fhr,*) time(itime)
-           !fhr=trim(adjustl(fhr))
            idate=trim(yyyy)//trim(mm)//trim(dd)//trim(hh)
            subset=trim(adjustl(message_type))
            chdr   = dfid(irid)       !SSTN - RADAR STATION IDENTIFIER -- uses same memory location as hdr(1)
            hdr(2) = dflon(irid)      !CLON - LONGITUDE (COARSE ACCURACY)
            hdr(3) = dflat(irid)      !CLAT - LATITUDE (COARSE ACCURACY)
            hdr(4) = dfheight(irid)   !SELV - HEIGHT OF STATION
-           !hdr(5) goes in tilt loop below.
+          !hdr(5) - tilt loop below.
            hdr(6) = iadate(1)        !YEAR - YEAR
            hdr(7) = iadate(2)        !MNTH - MONTH
            hdr(8) = iadate(3)        !DAYS - DAY
            hdr(9) = iadate(4)        !HOUR - HOUR 
            hdr(10)= 00               !MINU - MINUTE
            hdr(11)= 1                !QCRW - QUALITY MARK FOR WINDS ALONG RADIAL LINE
-           !hdr(12) goes in azm loop below.
-           bufrfilename=trim(idate)//'_fv3.t'//trim(hh)//'z.drw.bufr'
+          !hdr(12)- azm loop below.
+           bufrfilename=trim(idate)//'_fv3.t'//trim(hh)//'z_'//adjustl(trim(str_gatespc))//'-m.drw.bufr'
            bufrtilt: do itiltbufr=1,nelv
               intdate=iadate(1)*1000000 + iadate(2)*10000 + iadate(3)*100 + iadate(4) ! int(yyyymmddhh)
               hdr(5) = tilts(itiltbufr) 
@@ -626,9 +615,9 @@ program drwsim
                  obs=-999.0_r_kind ! Initialize as missing values
                  hdr(12)=float(iazmbufr90)
                  bufrgate: do igatebufr=1,numgates
-                    obs(1,igatebufr) = igatebufr     !DISTANCE (FROM ANTENNA TO GATE CENTER) IN UNITS OF 250M
-                    obs(2,igatebufr) = drwpol(itiltbufr,iazmbufr90,igatebufr)  !DOPPLER MEAN RADIAL VELOC 
-                    obs(3,igatebufr) = 1.0_r_kind                            !DOPPLER VELOCITY SPECTRAL WIDTH
+                    obs(1,igatebufr) = igatebufr !DISTANCE (FROM ANTENNA TO GATE CENTER) IN UNITS OF 250M
+                    obs(2,igatebufr) = drwpol(itiltbufr,iazmbufr90,igatebufr) !DOPPLER MEAN RADIAL VELOC 
+                    obs(3,igatebufr) = 1.0_r_kind                       !DOPPLER VELOCITY SPECTRAL WIDTH
                  end do bufrgate
                  ! encode radial velocity
                  call ufbint(10,hdr,12,1,iret,trim(hdstr))
@@ -638,7 +627,7 @@ program drwsim
               end do bufrazm
               call closmg(10) ! close bufr message
            end do bufrtilt
-           call closbf(10) !close bufr file
+           call closbf(10) ! close bufr file
            close(10)       ! close bufr file
            close(11)       ! close l2rwbufr.table
            bufrisopen=.false.
@@ -662,7 +651,7 @@ program drwsim
 end program drwsim
 
 
-  subroutine tll2xy(rlon,rlat,x,y)!,outside)
+  subroutine tll2xy(rlon,rlat,x,y)
 
 ! !USES:
 
@@ -753,7 +742,7 @@ END SUBROUTINE invtllv
 
 subroutine newdate(indate,nhr,outdate)
 ! This routine takes a date and an amount of time in hours to increment and
-! outputs the new date. idate must be dimension 4 with years starting in 1st
+! outputs the new date. indate must be dimension 4 with years starting in 1st
 ! dimension.
 ! input:   indate (yyyymmddhh) 
 !             nhr (        hh)

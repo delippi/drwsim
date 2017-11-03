@@ -22,19 +22,20 @@ LIBS=	-L$(NETCDF)/lib -lnetcdf \
 
 CF	= mpif90 -f90=ifort -I $(INCnetcdf) -I $(INCw3)
 CFFLAG	= mpif90 -f90=ifort -I $(INCnetcdf) -I $(INCw3)
+#CFFLAG	= mpif90 -f90=ifort -warn unused -I $(INCnetcdf) -I $(INCw3)
 execname= drwsim.x
 
 drwsim.x: kinds.o constants.o grdcrd.o interp_grid_to_ob_util.o drwsim.f90
 	$(CFFLAG) kinds.o constants.o grdcrd.o interp_grid_to_ob_util.o -o $(execname) drwsim.f90 $(LIBS)
 
 interp_grid_to_ob_util.o: kinds.o constants.o grdcrd.o interp_grid_to_ob_util.f90
-	$(CF) kinds.o constants.o grdcrd.o -c interp_grid_to_ob_util.f90 $(LIBS)
+	$(CF) -c interp_grid_to_ob_util.f90 $(LIBS)
 
 grdcrd.o: kinds.o constants.o grdcrd.f90
-	$(CF) kinds.o constants.o -c grdcrd.f90
+	$(CF) -c grdcrd.f90
 
 constants.o: kinds.o constants.f90
-	$(CF) kinds.o -c constants.f90
+	$(CF) -c constants.f90
 
 kinds.o: kinds.f90
 	$(CF) -c kinds.f90

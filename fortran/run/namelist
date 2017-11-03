@@ -4,13 +4,14 @@ iadate(2)=08, !10, !08,     !mm
 iadate(3)=07, !15, !07,     !dd
 iadate(4)=12, !00, !12,     !hh (utc)
 
-ntime=3,           ! number of times in nc file
-nelv=2,            ! number of tilt angles to process
+ntime=1,           ! number of times in nc file
+nelv=1,            ! number of tilt angles to process
 staid='KGRK',
+ithin=20,          ! Gate thinning frequency for RW obs (must be >=1).
+                   ! 250-m * ithin = new gate spacing. (e.g., ithin=20 -> 5-km) 
 
 mintilt=0.5,       ! Only  use tilt angles (deg) >= this number
 maxtilt=20.0,      ! Only  use tilt angles (deg) <= this number
-ithin=40,          ! Gate thinning frequency for RW obs (must be >=1).
 maxobrange=100000,
 minobrange=0,
 
