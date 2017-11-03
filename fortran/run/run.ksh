@@ -14,11 +14,26 @@ make clean
 make
 cd -
 
-cp ../fix/small_list_for_radar_sim_dev.csv .
-cp ../fix/l2rwbufr.table.csv .
-cp ../fix/l2rwbufr.table .
-
-EXECNAME=./drwsim.x
+exefile=drwsim.x
 namelist=./namelist
+FIXFILES="small_list_for_radar_sim_dev.csv 
+          l2rwbufr.table.csv 
+          l2rwbufr.table"
+if ! [[ -L $exefile ]]; then
+   echo "Linking $exefile" 
+   ln -s ../${exefile}
+else
+   echo "$exefile is already linked"
+fi
 
-$EXECNAME < $namelist
+for fixfile in $FIXFILES; do
+   if ! [[ -L $fixfile ]]; then
+      echo "Linking $fixfile"
+      ln -s ../fix/${fixfile}
+   else
+      echo "$fixfile is already linked"
+   fi
+done
+exit
+
+./$exefile < $namelist

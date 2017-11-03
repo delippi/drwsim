@@ -768,18 +768,18 @@ subroutine newdate(indate,nhr,outdate)
   integer(i_kind),dimension(4),intent(  out) :: outdate
 
   !--local declarations
-  integer(i_kind) :: yy,mm,dd,hh,maxdd
+  integer(i_kind) :: yyyy,mm,dd,hh,maxdd
 
-  yy=indate(1)
+  yyyy=indate(1)
   mm=indate(2)
   dd=indate(3)
   hh=indate(4)
 
   if(mm==01 .or. mm==03 .or. mm==05 .or. mm==07 .or. mm==08 .or. mm==10 .or. mm==12) then
      maxdd=31
-  else if(mm==02 .and. mod(yy,4)==0) then
+  else if(mm==02 .and. mod(yyyy,4)==0) then
      maxdd=28
-  else if(mm==02 .and. mod(yy,4)> 0) then
+  else if(mm==02 .and. mod(yyyy,4)> 0) then
      maxdd=29
   else if(mm==04 .or. mm==06 .or. mm==09 .or. mm==11) then
      maxdd=30
@@ -795,12 +795,13 @@ subroutine newdate(indate,nhr,outdate)
           mm=mm+1
           if(mm>12) then
              mm=01
+             yyyy=yyyy+1
           end if
         end if
      end if
   end do
   
-  outdate(1)=yy
+  outdate(1)=yyyy
   outdate(2)=mm
   outdate(3)=dd
   outdate(4)=hh
