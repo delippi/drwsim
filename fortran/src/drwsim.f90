@@ -191,7 +191,8 @@ program drwsim
   write(*,*) "Reading Global Radar List"
   numradars=154
   allocate(dfid(numradars),dflat(numradars),dflon(numradars),dfheight(numradars))
-  open(40,file=trim(radarcsv))!,status='old',action='read',iostat=ierror,form='formatted')
+  open(40,file=trim(radarcsv))
+  read(40,'(a2,1x,a3,1x,a3,1x,a6)') cdummy !read 1st line which is just a header.
   do ii=1,numradars
      read(40,'(a12,1x,2f12.4,1x,f6.2)') dfid(ii),dflat(ii),dflon(ii),dfheight(ii)
      dfid(ii)=trim(dfid(ii))
