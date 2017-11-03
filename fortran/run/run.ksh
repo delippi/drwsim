@@ -34,6 +34,5 @@ for fixfile in $FIXFILES; do
       echo "$fixfile is already linked"
    fi
 done
-exit
 
 ./$exefile < $namelist
