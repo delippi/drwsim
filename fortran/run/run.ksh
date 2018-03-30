@@ -7,14 +7,14 @@
 #PBS -o log_drwsim.out
 #PBS -j oe
 
-cd /scratch4/NCEPDEV/meso/save/Donald.E.Lippi/PhD-globalOSSE/obssim/fortran/run
+#cd /scratch4/NCEPDEV/meso/save/Donald.E.Lippi/PhD-globalOSSE/obssim/fortran/run
 cd ../src
 make clean
 make
 cd -
 
 exefile=drwsim.x
-namelist=./namelist
+namelist=namelist
 csvfile=radar_sim_dev.csv
 
 ln -sf ../src/${exefile} .

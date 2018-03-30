@@ -33,10 +33,11 @@ def make_colormap(seq):
 
 def main():
 ######### USER DEFINED SETTINGS #################################################
-   OBS_FILE='../run/2017080712_fv3.t12z.drw.bufr'
-   date=2017080712      # date and time of the observations                    #
+   #OBS_FILE='../run/2017080712_fv3.t12z.drw.bufr'
+   #date=2017080712      # date and time of the observations                    #
    #OBS_FILE='../run/2017101500_fhr06_fv3.t00z.drw.bufr'
-   #date=2017101500      # date and time of the observations                    #
+   OBS_FILE='../run/2017101500_fv3.t00z.drw.bufr'
+   date=2017101500      # date and time of the observations                    #
    STAID='KGRK'         # station id you want to plot.                         #
                         # tilt angle you want to plot.                         #
    anel_list=[0.5]#,1,1.5,2,2.5,3,3.5,4,4.5,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
@@ -138,7 +139,7 @@ def main():
                     #PRF_new[i][k]=PRF[i][j]
                     break # speeds things up by about 50-60%.
     rw[np.isnan(rw)] = -999 # the masked values are converted to nan. set nan to -999.
-    print(np.max(rw)) # check that it is not nan.
+    print("max value is: "+str(np.max(rw))) # check that it is not nan.
 
     #6. FINISH MAKING THE POLAR PLOT WITH THE FILLED IN VALUES.
     if(False):

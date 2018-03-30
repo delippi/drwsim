@@ -1,8 +1,8 @@
 &drw
-iadate(1)=2017,   !yyyy
-iadate(2)=08, !10, !08,     !mm
-iadate(3)=07, !15, !07,     !dd
-iadate(4)=12, !00, !12,     !hh (utc)
+iadate(1)=2017,    !yyyy
+iadate(2)=10,      !mm
+iadate(3)=15,      !dd
+iadate(4)=00,      !hh (utc)
 
 ntime=1,           ! number of times in nc file
 nelv=1,            ! number of tilt angles to process
@@ -14,16 +14,21 @@ mintilt=0.5,       ! Only  use tilt angles (deg) >= this number
 maxtilt=20.0,      ! Only  use tilt angles (deg) <= this number
 maxobrange=100000,
 minobrange=0,
+use_dbz=.true.,   ! use simulated dbz to determine where to simulate radial winds
+mindbz=-999.0,    ! minimum dbz threshold. set to -999 if you want radar winds everywhere.
 
 gatespc=250.,
-diagprint=.false.,
-diagverbose=0,
+diagprint=.true.,
+diagverbose=1,
 
-datapath='/scratch4/NCEPDEV/meso/save/Donald.E.Lippi/data/fv3-GFDLMP/'
-nesteddata3d='../nggps3d.nest02.nc',
-!nesteddata3d='nggps3d_4xdaily.nest02.nc',
-nesteddata2d='../nggps2d.nest02.nc',
+datapath='/scratch4/NCEPDEV/meso/noscrub/Eric.Aligo/work_FV3_nest_C768_2017101500_GFDL_MP_REFL/',
+nesteddata3d='nggps3d_4xdaily.nest02.nc',
+nesteddata2d='nggps2d.nest02.nc',
+!nesteddatadbz='refl2D.nest02.nc',
+nesteddatadbz='refl3D.nest02.nc',
 nestedgrid='grid_spec.nest02.nc',
+ak_bk='RESTART/fv_core.res.nest02.nc',
+
 radarcsv='radar_sim_dev.csv',
 
 tilts(1)=0.5,

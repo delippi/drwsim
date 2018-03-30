@@ -11,7 +11,8 @@ program drwsim
 
   implicit none
 
-  integer(i_kind)     :: ndata,mindat
+  integer(i_kind)     :: ndata
+  integer(i_kind)     :: mindat
 
   ! Declare local parameters
   real(r_kind),parameter :: four_thirds = 4.0_r_kind / 3.0_r_kind
@@ -19,15 +20,29 @@ program drwsim
   real(r_kind),parameter :: r360        = 360.0_r_kind
 
 !--General declarations
-  integer(i_kind) :: n,iret
-  integer(i_kind),dimension(4) :: iadate,intdate
+  integer(i_kind) :: n
+  integer(i_kind) :: iret
+  integer(i_kind),dimension(4) :: iadate
+  integer(i_kind),dimension(4) :: intdate
   character(4) :: yyyy
-  character(2) :: mm,dd,hh,mn
-  character(10)             :: idate
-  real(r_kind),dimension(nsig) :: zges,hges
-  real(r_kind) :: cosazm,sinazm,costilt,sintilt
-  real(r_kind) :: ugesin,vgesin,wgesin,dbzgesin
-  real(r_kind) :: zsges,psfcsges
+  character(2) :: mm
+  character(2) :: dd
+  character(2) :: hh
+  character(2) :: mn
+  character(10):: idate
+  real(r_kind),dimension(nsig)  :: zges
+  real(r_kind),dimension(nsig)  :: hges
+  real(r_kind),dimension(nsig+1):: prsi
+  real(r_kind) :: cosazm
+  real(r_kind) :: sinazm
+  real(r_kind) :: costilt
+  real(r_kind) :: sintilt
+  real(r_kind) :: ugesin
+  real(r_kind) :: vgesin
+  real(r_kind) :: wgesin
+  real(r_kind) :: dbzgesin
+  real(r_kind) :: zsges
+  real(r_kind) :: psfcsges
   real(r_kind) :: sin2,termg,termr,termrg,dpres
   real(r_kind) :: b,c,ha,epsh,h,aactual,a43,thistilt
   real(r_kind) :: thistiltr,selev0,celev0,thisrange,this_stahgt,thishgt
@@ -35,18 +50,18 @@ program drwsim
                   clat0,slat0,dlat,dlon,thislon,thislat, &
                   rlonloc,rlatloc,rlonglob,rlatglob,rad_per_meter, &
                   radar_x,radar_y,radar_lon,radar_lat
-  real(r_kind),allocatable :: delz(:,:),height(:,:)
+  !real(r_kind),allocatable :: delz(:,:),height(:,:),delp(:,:)
   real(r_kind),allocatable :: drwpol(:,:,:) !tilt,azm,gate
   integer(i_kind) :: irid,itilt,iazm,igate,itime,iazm90,isig
 
 
   character(4) this_staid
   character(5) str_gatespc
-  logical   :: diagprint,inside,bufrisopen,radar_location
+  logical   :: diagprint
+  logical   :: inside
+  logical   :: bufrisopen
+  logical   :: radar_location
   integer   :: diagverbose
-
-!  type(radar),allocatable :: strct_in_vel(:,:),rad(:)
-
 
   !---------DEFAULT SETTINGS---------!
   integer(i_kind) :: maxobrange=250000_i_kind  ! Range (m) *within* which to use observations 
@@ -55,46 +70,77 @@ program drwsim
   real(r_kind)    :: maxtilt=5.5_r_kind        ! Do no use tilt(elevation) angles (deg) <= this number
   integer(i_kind) :: ithin=4_i_kind            ! Gates to skip for ob thinning (must be >=1)
   character(4)    :: staid='KOUN'              ! default station ID to use
-  real(r_kind)    :: mindbz=0_r_kind           ! minimum dbz value needed at a location to create a drw
+  real(r_kind)    :: mindbz=-999_r_kind        ! minimum dbz value needed at a location to create a drw
   real(r_kind),dimension(25)    :: tilts=0_r_kind ! initialize the tilts to zero-degrees
   integer(i_kind) :: azimuths=360_i_kind       ! number of azimuths
   integer(i_kind) :: gatespc=250_i_kind        ! gate spacing (meters)
   integer(i_kind) :: numgates=400_i_kind       ! number of gates
   integer(i_kind) :: ntime=1_i_kind            ! number of times from nc file
   integer(i_kind) :: nelv=1_i_kind             ! number of elvation tilts
+  logical         :: use_dbz=.true.            ! check for dbz at obs location?
   !----------------------------------------------!
 
   !---------NETCDF VARS---------!
-  integer(i_kind) :: ncid3d,ncid2d,ncidgs,ier
-  integer(i_kind) :: tVarId,pVarId,uVarId,vVarId,wVarId,ghVarId,dbzVarId !3d
-  integer(i_kind) :: hgtVarID,psfcVarID                                  !2d
-  integer(i_kind) :: glonVarId,glatVarId                                 !gs
+  integer(i_kind) :: ncid3d
+  integer(i_kind) :: ncid2d
+  integer(i_kind) :: ncidakbk
+  integer(i_kind) :: ncidgs
+  integer(i_kind) :: nciddbz
+  integer(i_kind) :: ier
+  integer(i_kind) ::         time_VarId
+  integer(i_kind) ::        pfull_VarId
+  integer(i_kind) ::        ucomp_VarId
+  integer(i_kind) ::        vcomp_VarId
+  integer(i_kind) ::            w_VarId
+  integer(i_kind) ::         delz_VarId
+  integer(i_kind) ::         delp_VarId
+  integer(i_kind) :: reflectivity_VarId
+  integer(i_kind) ::       HGTsfc_VarId
+  integer(i_kind) ::      PRESsfc_VarId
+  integer(i_kind) ::           ak_VarId
+  integer(i_kind) ::           bk_VarId
+  integer(i_kind) ::         glon_VarId
+  integer(i_kind) ::         glat_VarId
+  integer(i_kind) :: ndim
+  character(12)   :: name2d
   real(r_kind),allocatable  ::      time(      :) ! (    ,    ,    ,ntime)
-  real(r_kind),allocatable  ::    pcoord(    :  ) ! (    ,    ,nsig,     )
+  real(r_kind),allocatable  ::     pfull(    :  ) ! (    ,    ,nsig,     )
   real(r_kind),allocatable  ::     ges_u(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::     ges_v(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::     ges_w(:,:,:,:) ! (nlon,nlat,nsig,ntime)
-  real(r_kind),allocatable  :: geop_hgtl(:,:,:,:) ! (nlon,nlat,nsig,ntime)
+  real(r_kind),allocatable  ::      delz(:,:,:,:) ! (nlon,nlat,nsig,ntime)
+  real(r_kind),allocatable  ::      delp(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::   ges_dbz(:,:,:,:) ! (nlon,nlat,nsig,ntime)
-  real(r_kind),allocatable  ::     ges_z(:,:    ) ! (nlon,nlat,    ,     )
-  real(r_kind),allocatable  ::  ges_psfc(:,:    ) ! (nlon,nlat,    ,     )
-!  real(r_kind),allocatable  ::      lons(:,:    ) ! (nlon,nlat,    ,     )
-!  real(r_kind),allocatable  ::      lats(:,:    ) ! (nlon,nlat,    ,     )
+  real(r_kind),allocatable  ::  ges_sfcz(:,:    ) ! (nlon,nlat,    ,     )   
+  real(r_kind),allocatable  ::    height(:,:,:,:) ! (nlon,nlat,nsig,ntime) 
+  real(r_kind),allocatable  ::  ges_psfc(:,:,  :) ! (nlon,nlat,    ,ntime)
+  real(r_kind),allocatable  ::  ges_prsi(:,:,:,:) ! (nlon,nlat,nsig,ntime)
+  real(r_kind),allocatable  ::        ak(    :,:) ! (    ,    ,nsig,ntime)
+  real(r_kind),allocatable  ::        bk(    :,:) ! (    ,    ,nsig,ntime)
   !----------------------------------------------!
 
   !---------GLOBAL RADAR CSV FILE VARS---------!
-  integer(i_kind)                         :: ii,numradars
-  real(r_kind),dimension(:),allocatable   :: dflat,dflon,dfheight
+  integer(i_kind)                         :: ii
+  integer(i_kind)                         :: numradars
+  real(r_kind),dimension(:),allocatable   :: dflat
+  real(r_kind),dimension(:),allocatable   :: dflon
+  real(r_kind),dimension(:),allocatable   :: dfheight
   character(12),dimension(:),allocatable  :: dfid
   !----------------------------------------------!
 
 
   !---------BUFR VARS--------------------------!
-  integer(i_kind) :: itiltbufr,iazmbufr,igatebufr,iazmbufr90
-  character(80) :: bufrfilename,hdstr,obstr
-  real(r_double) :: hdr(12)
+  integer(i_kind) :: itiltbufr
+  integer(i_kind) :: iazmbufr
+  integer(i_kind) :: igatebufr
+  integer(i_kind) :: iazmbufr90
+  character(80)   :: bufrfilename
+  character(80)   :: hdstr
+  character(80)   :: obstr
+  real(r_double)  :: hdr(12)
   real(r_double),allocatable :: obs(:,:)
-  character(8) :: chdr,subset
+  character(8) :: chdr
+  character(8) :: subset
   equivalence (hdr(1),chdr)
 
   !---------L2RWBUFR CSV TABLE VARS------------!
@@ -102,17 +148,28 @@ program drwsim
   character(8) :: cdummy
 
   !-------------TIMER VARS---------------------!
-  integer(i_kind) :: time_array_0(8), time_array_1(8),hrs,mins,secs
-  real(r_kind)    :: start_time,finish_time,total_time
+  integer(i_kind) :: time_array_0(8)
+  integer(i_kind) :: time_array_1(8)
+  integer(i_kind) :: hrs
+  integer(i_kind) :: mins
+  integer(i_kind) :: secs
+  real(r_kind)    :: start_time
+  real(r_kind)    :: finish_time
+  real(r_kind)    :: total_time
 
 
-  character(len=120)  :: datapath
-  character(len=120)  :: nesteddata3d,nesteddata2d,nestedgrid,radarcsv
-  character(len=120)  :: bufroutfile
+  character(len=180)  :: datapath
+  character(len=180)  :: nesteddata3d
+  character(len=180)  :: nesteddata2d
+  character(len=180)  :: nestedgrid
+  character(len=180)  :: ak_bk
+  character(len=180)  :: radarcsv
+  character(len=180)  :: nesteddatadbz
+  character(len=180)  :: bufroutfile
 
   namelist/drw/iadate,ntime,nelv,nesteddata3d,nesteddata2d,nestedgrid,bufroutfile,&
                mintilt,maxtilt,staid,mindbz,tilts,maxobrange,minobrange,azimuths,ithin,&
-               gatespc,datapath,diagprint,diagverbose,radarcsv
+               gatespc,datapath,diagprint,diagverbose,radarcsv,ak_bk,use_dbz,nesteddatadbz,mindbz
 
 
 !--------------------------------------------------------------------------------------!
@@ -141,7 +198,9 @@ program drwsim
   numgates=int(maxobrange/gatespc) !calculate num gates based on namelist settings.
   nesteddata3d=trim(datapath) // trim(nesteddata3d) !concat strings
   nesteddata2d=trim(datapath) // trim(nesteddata2d)
-  nestedgrid  =trim(datapath) // trim(nestedgrid)
+  nesteddatadbz=trim(datapath) // trim(nesteddatadbz)
+  ak_bk=trim(datapath) // trim(ak_bk)
+  nestedgrid =trim(datapath) // trim(nestedgrid)
 
   if(diagprint .and. diagverbose >= 1) then
      write(*,*) "----NC FILE SPECS--------"
@@ -165,6 +224,8 @@ program drwsim
      write(*,*) "datapath:",datapath
      write(*,*) "nesteddata3d:",nesteddata3d
      write(*,*) "nesteddata2d:",nesteddata2d
+     write(*,*) "nesteddatadbz:",nesteddatadbz
+     write(*,*) "ak_bk:       ",ak_bk
      write(*,*) "radarcsv:",radarcsv
      write(*,*) "nestedgrid:",nestedgrid
      write(*,*) "diagprint: ",diagprint
@@ -199,82 +260,133 @@ program drwsim
   end do
   close(40)
 
+!------ OPEN AKBK NETCDF FILE ------------------------------
+  ncidakbk=50
+  write(*,*) "Opening and reading ak_bk"
+  ier=nf90_open(ak_bk,nf90_NoWrite,ncidakbk)
+  if(ier /= nf90_NoErr) STOP "ERROR READ AKBK NETCDF STOP!"
+
+  !ak
+  allocate(ak(nsig+1,ntime))
+  write(*,*) "Reading ak"
+  ak=0.0_r_kind !initialize
+  ier=nf90_inq_varid(ncidakbk,"ak",ak_VarId)
+  if(ier /= nf90_NoErr) STOP "ERROR INQ ak NETCDF STOP!"
+  ier=nf90_get_var(ncidakbk,ak_VarId,ak)
+  if(ier /= nf90_NoErr) STOP "ERROR GET ak NETCDF STOP!"
+
+  !bk
+  allocate(bk(nsig+1,ntime))
+  write(*,*) "Reading bk"
+  bk=0.0_r_kind !initialize
+  ier=nf90_inq_varid(ncidakbk,"bk",bk_VarId)
+  if(ier /= nf90_NoErr) STOP "ERROR INQ bk NETCDF STOP!"
+  ier=nf90_get_var(ncidakbk,bk_VarId,bk)
+  if(ier /= nf90_NoErr) STOP "ERROR GET bk NETCDF STOP!"
+
+  ! close file
+  write(*,*) "Closing ak_bk"
+  ier=nf90_close(ncidakbk)
+  if(ier /= nf90_NoErr) STOP "ERROR CLOSE AKBK NETCDF STOP!"
+
 !------ OPEN 3D NETCDF FILE ------------------------------
   ncid3d=30
   write(*,*) "Opening and reading nesteddata3d"
   ier=nf90_open(nesteddata3d,nf90_NoWrite,ncid3d)
-  if(ier /= nf90_NoErr) STOP "ERROR READ NETCDF STOP!"
+  if(ier /= nf90_NoErr) STOP "ERROR READ 3D NETCDF STOP!"
 
   ! time
   allocate(time(ntime))
   write(*,*) "Reading time"
-  pcoord=0.0_r_kind !initialize
-  ier=nf90_inq_varid(ncid3d,"time",tVarId)
+  pfull=0.0_r_kind !initialize
+  ier=nf90_inq_varid(ncid3d,"time",time_VarId)
   if(ier /= nf90_NoErr) STOP "ERROR INQ time NETCDF STOP!"
-  ier=nf90_get_var(ncid3d,tVarId,time)
+  ier=nf90_get_var(ncid3d,time_VarId,time)
   if(ier /= nf90_NoErr) STOP "ERROR GET time NETCDF STOP!"
 
-  ! pcoord
-  allocate(pcoord(nsig))
-  write(*,*) "Reading pcoord"
-  pcoord=0.0_r_kind !initialize
-  ier=nf90_inq_varid(ncid3d,"pfull",pVarId)
-  if(ier /= nf90_NoErr) STOP "ERROR INQ pcoord NETCDF STOP!"
-  ier=nf90_get_var(ncid3d,pVarId,pcoord)
-  if(ier /= nf90_NoErr) STOP "ERROR GET pcoord NETCDF STOP!"
+  ! pfull
+  allocate(pfull(nsig))
+  write(*,*) "Reading pfull"
+  pfull=0.0_r_kind !initialize
+  ier=nf90_inq_varid(ncid3d,"pfull",pfull_VarId)
+  if(ier /= nf90_NoErr) STOP "ERROR INQ pfull NETCDF STOP!"
+  ier=nf90_get_var(ncid3d,pfull_VarId,pfull)
+  if(ier /= nf90_NoErr) STOP "ERROR GET pfull NETCDF STOP!"
   !--convert from mb to Pa
-  pcoord=pcoord*100.0_r_kind
+  pfull=pfull*100.0_r_kind
 
   ! u
   allocate(ges_u(nlon,nlat,nsig,ntime))
   write(*,*) "Reading ges_u"
   ges_u=0.0_r_kind !initialize
-  ier=nf90_inq_varid(ncid3d,"ucomp",uVarId)
+  ier=nf90_inq_varid(ncid3d,"ucomp",ucomp_VarId)
   if(ier /= nf90_NoErr) STOP "ERROR INQ ges_u NETCDF STOP!"
-  ier=nf90_get_var(ncid3d,uVarId,ges_u)
+  ier=nf90_get_var(ncid3d,ucomp_VarId,ges_u)
   if(ier /= nf90_NoErr) STOP "ERROR GET ges_u NETCDF STOP!"
 
   ! v
   allocate(ges_v(nlon,nlat,nsig,ntime))
   write(*,*) "Reading ges_v"
   ges_v=0.0_r_kind !initialize
-  ier=nf90_inq_varid(ncid3d,"vcomp",vVarId)
+  ier=nf90_inq_varid(ncid3d,"vcomp",vcomp_VarId)
   if(ier /= nf90_NoErr) STOP "ERROR INQ ges_v NETCDF STOP!"
-  ier=nf90_get_var(ncid3d,vVarId,ges_v)
+  ier=nf90_get_var(ncid3d,vcomp_VarId,ges_v)
   if(ier /= nf90_NoErr) STOP "ERROR GET ges_v NETCDF STOP!"
 
   ! w
   allocate(ges_w(nlon,nlat,nsig,ntime))
   write(*,*) "Reading ges_w"
   ges_w=0.0_r_kind !initialize
-  ier=nf90_inq_varid(ncid3d,"w",    wVarId)
+  ier=nf90_inq_varid(ncid3d,"w",    w_VarId)
   if(ier /= nf90_NoErr) STOP "ERROR INQ ges_w NETCDF STOP!"
-  ier=nf90_get_var(ncid3d,wVarId,ges_w)
+  ier=nf90_get_var(ncid3d,w_VarId,ges_w)
   if(ier /= nf90_NoErr) STOP "ERROR GET ges_w NETCDF STOP!"
 
-  ! geop_hgtl - note this field may not be the correct one to use...
-  allocate(geop_hgtl(nlon,nlat,nsig,ntime))
-  write(*,*) "Reading geop_hgtl"
-  geop_hgtl=0.0_r_kind !initialize
-  ier=nf90_inq_varid(ncid3d,"delz", ghVarId)
-  if(ier /= nf90_NoErr) STOP "ERROR INQ geop_hgtl NETCDF STOP!"
-  ier=nf90_get_var(ncid3d,ghVarId,geop_hgtl)
-  if(ier /= nf90_NoErr) STOP "ERROR GET geop_hgtl NETCDF STOP!"
-!  geop_hgtl=geop_hgtl*grav
+  ! delz - height thickness [m] 
+  allocate(delz(nlon,nlat,nsig,ntime))
+  write(*,*) "Reading delz"
+  delz=0.0_r_kind !initialize
+  ier=nf90_inq_varid(ncid3d,"delz", delz_VarId)
+  if(ier /= nf90_NoErr) STOP "ERROR INQ delz NETCDF STOP!"
+  ier=nf90_get_var(ncid3d,delz_VarId,delz)
+  if(ier /= nf90_NoErr) STOP "ERROR GET delz NETCDF STOP!"
 
-!  ! dbz - which doesn't exist in the file yet...
-!  allocate(ges_dbz(nlon,nlat,nsig,ntime))
-!  write(*,*) "Reading ges_dbz"
-!  ges_dbz=0.0_r_kind !initialize
-!  ier=nf90_inq_varid(ncid3d,"reflectivity", dbzVarId)
-!  if(ier /= nf90_NoErr) STOP "ERROR INQ ges_dbz NETCDF STOP!"
-!  ier=nf90_get_var(ncid3d,dbzVarId,ges_dbz)
-!  if(ier /= nf90_NoErr) STOP "ERROR GET ges_dbz NETCDF STOP!"
+  ! delp - pressure thickness [pa]
+  allocate(delp(nlon,nlat,nsig,ntime))
+  write(*,*) "Reading delp"
+  delp=0.0_r_kind !initialize
+  ier=nf90_inq_varid(ncid3d,"delp", delp_VarId)
+  if(ier /= nf90_NoErr) STOP "ERROR INQ delp NETCDF STOP!"
+  ier=nf90_get_var(ncid3d,delp_VarId,delp)
+  if(ier /= nf90_NoErr) STOP "ERROR GET delp NETCDF STOP!"
 
   ! close file
   write(*,*) "Closing nesteddata3d"
   ier=nf90_close(ncid3d)
   if(ier /= nf90_NoErr) STOP "ERROR CLOSE 3D NETCDF STOP!"
+
+
+!------ OPEN DBZ NETCDF FILE ------------------------------
+  if(use_dbz) then
+     nciddbz=24
+     write(*,*) "Opening and reading nesteddatadbz"
+     ier=nf90_open(nesteddatadbz,nf90_NoWrite,nciddbz)
+     if(ier /= nf90_NoErr) STOP "ERROR READ DBZ NETCDF STOP!"
+
+     ! dbz
+     allocate(ges_dbz(nlon,nlat,nsig,ntime))
+     write(*,*) "Reading ges_dbz"
+     ges_dbz=0.0_r_kind !initialize
+     ier=nf90_inq_varid(nciddbz,"reflectivity", reflectivity_VarId)
+     if(ier /= nf90_NoErr) STOP "ERROR INQ ges_dbz NETCDF STOP!"
+     ier=nf90_get_var(nciddbz,reflectivity_VarId,ges_dbz)
+     if(ier /= nf90_NoErr) STOP "ERROR GET ges_dbz NETCDF STOP!"
+
+     ! close file
+     write(*,*) "Closing nesteddatadbz"
+     ier=nf90_close(nciddbz)
+     if(ier /= nf90_NoErr) STOP "ERROR CLOSE DBZ NETCDF STOP!"
+  endif
 
 !------ OPEN 2D NETCDF FILE ------------------------------
   ncid2d=20
@@ -282,24 +394,23 @@ program drwsim
   ier=nf90_open(nesteddata2d,nf90_NoWrite,ncid2d)
   if(ier /= nf90_NoErr) STOP "ERROR READ NETCDF STOP!"
 
-  ! z - note this field may not be the correct one to use...
-  allocate(ges_z(nlon,nlat))
-  write(*,*) "Reading ges_z"
-  ges_z=0.0_r_kind !initialize
-  ier=nf90_inq_varid(ncid2d,"HGTsfc", hgtVarID)
-  if(ier /= nf90_NoErr) STOP "ERROR INQ hgtsfc NETCDF STOP!"
-  ier=nf90_get_var(ncid2d,hgtVarID,ges_z)
-  if(ier /= nf90_NoErr) STOP "ERROR GET hgtsfc NETCDF STOP!"
-  !ges_z=ges_z/grav
+  ! HGTsfc (z)
+  allocate(ges_sfcz(nlon,nlat))
+  write(*,*) "Reading ges_sfcz"
+  ges_sfcz=0.0_r_kind !initialize
+  ier=nf90_inq_varid(ncid2d,"HGTsfc", HGTsfc_VarId)
+  if(ier /= nf90_NoErr) STOP "ERROR INQ HGTsfc NETCDF STOP!"
+  ier=nf90_get_var(ncid2d,HGTsfc_VarId,ges_sfcz)
+  if(ier /= nf90_NoErr) STOP "ERROR GET HGTsfc NETCDF STOP!"
 
-  ! psfc
-  allocate(ges_psfc(nlon,nlat))
+  ! PRESsfc
+  allocate(ges_psfc(nlon,nlat,ntime))
   write(*,*) "Reading ges_psfc"
   ges_psfc=0.0_r_kind !initialize
-  ier=nf90_inq_varid(ncid2d,"PRESsfc", psfcVarID)
-  if(ier /= nf90_NoErr) STOP "ERROR INQ psfc NETCDF STOP!"
-  ier=nf90_get_var(ncid2d,psfcVarID,ges_psfc)
-  if(ier /= nf90_NoErr) STOP "ERROR GET psfc NETCDF STOP!"
+  ier=nf90_inq_varid(ncid2d,"PRESsfc", PRESsfc_VarId)
+  if(ier /= nf90_NoErr) STOP "ERROR INQ PRESsfc NETCDF STOP!"
+  ier=nf90_get_var(ncid2d,PRESsfc_VarId,ges_psfc)
+  if(ier /= nf90_NoErr) STOP "ERROR GET PRESsfc NETCDF STOP!"
 
   ! close file
   write(*,*) "Closing nesteddata2d"
@@ -315,17 +426,17 @@ program drwsim
   ! glon
   write(*,*) "Reading glon"
   allocate(glon(nlon,nlat))
-  ier=nf90_inq_varid(ncidgs,"grid_lont", glonVarId)
+  ier=nf90_inq_varid(ncidgs,"grid_lont", glon_VarId)
   if(ier /= nf90_NoErr) STOP "ERROR INQ glon NETCDF STOP!"
-  ier=nf90_get_var(ncidgs,glonVarId,glon)
+  ier=nf90_get_var(ncidgs,glon_VarId,glon)
   if(ier /= nf90_NoErr) STOP "ERROR GET glon NETCDF STOP!"
 
   ! glat
   write(*,*) "Reading glat"
   allocate(glat(nlon,nlat))
-  ier=nf90_inq_varid(ncidgs,"grid_latt", glatVarId)
+  ier=nf90_inq_varid(ncidgs,"grid_latt", glat_VarId)
   if(ier /= nf90_NoErr) STOP "ERROR INQ glat NETCDF STOP!"
-  ier=nf90_get_var(ncidgs,glatVarId,glat)
+  ier=nf90_get_var(ncidgs,glat_VarId,glat)
   if(ier /= nf90_NoErr) STOP "ERROR GET glat NETCDF STOP!"
 
   ! close file
@@ -333,53 +444,65 @@ program drwsim
   ier=nf90_close(ncidgs)
   if(ier /= nf90_NoErr) STOP "ERROR CLOSE GRID SPEC NETCDF STOP!"
  
+!  !--compute the 3D pressure at the interfaces.
+!  allocate(ges_prsi(nlon,nlat,nsig+1,ntime))
+!  do itime=1,ntime
+!     do isig=1,nsig+1
+!        ges_prsi(:,:,isig,itime)=ak(isig,itime)*0.001_r_kind+bk(isig,itime)*ges_psfc(:,:,ntime)
+!     enddo
+!  end do
 
-  !--I think you need to add each "delz" up to the get height at the associated
-  !pressure level. Also, start from the bottom (level=63) and work your way up.
-  allocate(height(nlon,nlat),delz(nlon,nlat)) 
+!  !--I think you need to add each "delz" up to the get height at the associated
+!  !pressure level. Also, start from the bottom (level=63) and work your way up.
+!  allocate(height(nlon,nlat),delz(nlon,nlat)) 
+!  do itime=1,ntime
+!     height = zero
+!     do isig=nsig,1,-1
+!        delz                      = geop_hgtl(:,:,isig,itime)
+!        height                    = height + delz
+!        geop_hgtl(:,:,isig,itime) = height
+!     end do
+!  end do
+
+  !--compute the geometric height
+  allocate(height(nlon,nlat,nsig,ntime))
   do itime=1,ntime
      height = zero
-     do isig=nsig,1,-1
-        delz                      = geop_hgtl(:,:,isig,itime)
-        geop_hgtl(:,:,isig,itime) = height + delz
-        height                    = geop_hgtl(:,:,isig,itime)
-     end do
-  end do
-
-  !--subtract terrain height
-  do itime=1,ntime 
      do isig=1,nsig
-        geop_hgtl(:,:,isig,itime) = geop_hgtl(:,:,isig,itime) - ges_z(:,:)
-     end do
-  end do
+        height(:,:,isig,itime) = height(:,:,isig,itime) + delz(:,:,isig,ntime)
+       !height(:,:,isig,itime) = height(:,:,isig,itime) - ges_sfcz(:,:)
+     enddo
+  enddo
 
    if(diagprint .and. diagverbose >= 2) then
       write(*,*)"time     ", maxval(     time(      :)), minval(     time(      :)) 
-      write(*,*)"pcoord   ", maxval(   pcoord(    :  )), minval(   pcoord(    :  )) 
+      write(*,*)"pfull    ", maxval(    pfull(    :  )), minval(    pfull(    :  )) 
       write(*,*)"ges_u    ", maxval(    ges_u(:,:,:,:)), minval(    ges_u(:,:,:,:)) 
       write(*,*)"ges_v    ", maxval(    ges_v(:,:,:,:)), minval(    ges_v(:,:,:,:))
       write(*,*)"ges_w    ", maxval(    ges_w(:,:,:,:)), minval(    ges_w(:,:,:,:)) 
-      write(*,*)"geop_hgtl", maxval(geop_hgtl(:,:,:,:)), minval(geop_hgtl(:,:,:,:)) 
-!      write(*,*)"ges_dbz  ", maxval(  ges_dbz(:,:,:,:)), minval(  ges_dbz(:,:,:,:)) 
+      write(*,*)"height   ", maxval(   height(:,:,:,:)), minval(   height(:,:,:,:))
+      write(*,*)"ges_prsi ", maxval( ges_prsi(:,:,:,:)), minval( ges_prsi(:,:,:,:)) 
       write(*,*)"glon     ", maxval(     glon(:,:    )), minval(     glon(:,:    ))
       write(*,*)"glat     ", maxval(     glat(:,:    )), minval(     glat(:,:    ))
-      write(*,*)"ges_z    ", maxval(    ges_z(:,:    )), minval(    ges_z(:,:    )) 
-      write(*,*)"ges_psfc ", maxval( ges_psfc(:,:    )), minval( ges_psfc(:,:    )) 
+      write(*,*)"ges_sfcz ", maxval( ges_sfcz(:,:    )), minval( ges_sfcz(:,:    ))
+      write(*,*)"ges_psfc ", maxval( ges_psfc(:,:,  :)), minval( ges_psfc(:,:,  :)) 
+      if(use_dbz) write(*,*)"ges_dbz  ", maxval(  ges_dbz(:,:,:,:)), minval(  ges_dbz(:,:,:,:)) 
    end if
 
    !--Make sure we're not missing fields.
    if(maxval(     time(      :)) == 0 .and. minval(     time(      :)) == 0) STOP 'MISSING TIME' 
-   if(maxval(   pcoord(    :  )) == 0 .and. minval(   pcoord(    :  )) == 0) STOP 'MISSING PCOORD' 
+   if(maxval(    pfull(    :  )) == 0 .and. minval(    pfull(    :  )) == 0) STOP 'MISSING PCOORD' 
    if(maxval(    ges_u(:,:,:,:)) == 0 .and. minval(    ges_u(:,:,:,:)) == 0) STOP 'MISSING U'  
    if(maxval(    ges_v(:,:,:,:)) == 0 .and. minval(    ges_v(:,:,:,:)) == 0) STOP 'MISSING V' 
    if(maxval(    ges_w(:,:,:,:)) == 0 .and. minval(    ges_w(:,:,:,:)) == 0) STOP 'MISSING W' 
-   if(maxval(geop_hgtl(:,:,:,:)) == 0 .and. minval(geop_hgtl(:,:,:,:)) == 0) STOP 'MISSING GEOPOTHGT' 
-!   if(maxval(  ges_dbz(:,:,:,:)) == 0 .and. minval(  ges_dbz(:,:,:,:)) == 0) STOP 'MISSING DBZ' 
+   if(maxval(   height(:,:,:,:)) == 0 .and. minval(   height(:,:,:,:)) == 0) STOP 'MISSING HEIGHT'
+   if(maxval( ges_prsi(:,:,:,:)) == 0 .and. minval( ges_prsi(:,:,:,:)) == 0) STOP 'MISSING PRESI' 
    if(maxval(     glon(:,:    )) == 0 .and. minval(     glon(:,:    )) == 0) STOP 'MISSING GLON' 
    if(maxval(     glat(:,:    )) == 0 .and. minval(     glat(:,:    )) == 0) STOP 'MISSING GLAT' 
-   if(maxval(    ges_z(:,:    )) == 0 .and. minval(    ges_z(:,:    )) == 0) STOP 'MISSING HGTSFC' 
-   if(maxval( ges_psfc(:,:    )) == 0 .and. minval( ges_psfc(:,:    )) == 0) STOP 'MISSING PRESsfc'
-   
+   if(maxval( ges_sfcz(:,:    )) == 0 .and. minval( ges_sfcz(:,:    )) == 0) STOP 'MISSING HGTSFC'
+   if(maxval( ges_psfc(:,:,  :)) == 0 .and. minval( ges_psfc(:,:,  :)) == 0) STOP 'MISSING PRESsfc'
+   if(maxval(  ges_dbz(:,:,:,:)) == 0 .and. minval(  ges_dbz(:,:,:,:)) == 0 .and. use_dbz) STOP 'MISSING DBZ' 
+
   !set up information needed to interpolate model to observation
   !*********************************
   call gridmod_extract
@@ -400,10 +523,6 @@ program drwsim
 
   ndata=izero
 
-  !-Obtain analysis time in minutes since reference date
-  !call w3fs21(iadate,mins_an)  !mins_an -integer number of mins snce 01/01/1978
-  !rmins_an=mins_an             !convert to real number
-
   loopOVERtime: do itime=1,ntime
      if(itime > 1) call newdate(iadate,1,iadate) ! don't increment the first time.
      loopOVERradars: do irid=1,numradars 
@@ -418,6 +537,10 @@ program drwsim
            clat0=cos(rlat0)
            slat0=sin(rlat0)
            loopOVERtilts:    do itilt=1,nelv
+              if(tilts(itilt) > maxtilt .or. tilts(itilt) < mintilt) then
+                 write(*,*) "oops... itilt:",tilts(itilt)," is out of bounds max/mintilt:",maxtilt,mintilt," cycling"
+                 cycle
+              end if
               bufrisopen=.false.   !Initialize bufr file as closed.
               thistilt=tilts(itilt)
               thistiltr=thistilt*deg2rad
@@ -434,7 +557,7 @@ program drwsim
                  if(thisazimuth<zero) thisazimuth=thisazimuth+r360
                  thisazimuthr=thisazimuth*deg2rad
                  loopOVERgates: do igate=1,numgates     
-                    inside=.false.
+                    inside=.false. ! is our ob location inside the bounds? preset to false, then check.
                     if(igate*gatespc >= minobrange .and. igate*gatespc <= maxobrange) inside=.true.
                     ifinside: if(inside) then
                        !--Find observation height using method from read_l2bufr_mod.f90 
@@ -487,52 +610,44 @@ program drwsim
 !**********************************DO WIND ROTATION IF RADIAL WIND****!
 !   SHOULD NOT BE NEEDED FOR FV3???
 !**********************************DO WIND ROTATION IF RADIAL WIND****!
-                    
-                       call tintrp2a_single_level(ges_z,zsges,dlon,dlat)
+                  
+                       !--Interpolate some fields to obs location 
+                       call tintrp2a_single_level(ges_sfcz,   zsges,dlon,dlat)
                        call tintrp2a_single_level(ges_psfc,psfcsges,dlon,dlat)
-                       dpres=dpres-zsges      !  remove terrain height from ob absolute height
-                       call tintrp2a(geop_hgtl(:,:,:,itime),hges,dlon,dlat,nsig)  
-!                  !    Convert geopotential height at layer midpoints to
-!                  !    geometric height using
-!                  !    equations (17, 20, 23) in MJ Mahoney's note "A
-!                  !    discussion of various
-!                  !    measures of altitude" (2001).  Available on the web at
-!                  !    http://mtp.jpl.nasa.gov/notes/altitude/altitude.html
-!                  !    http://archive.is/reKhz
-!                  !
-!                  !    termg  = equation 17
-!                  !    termr  = equation 21
-!                  !    termrg = first term in the denominator of equation 23
-!                  !    zges   = equation 23
-                       sin2  = sin(thislat)*sin(thislat)
-                       termg = grav_equator * ((one+somigliana*sin2)/sqrt(one-eccentricity*eccentricity*sin2))
-                       termr = semi_major_axis /(one + flattening + grav_ratio-  two*flattening*sin2)
-                       termrg = (termg/grav)*termr
-                       do n=1,nsig
-                          zges(n) = (termr*hges(n)) / (termrg-hges(n))  ! eq (23)
-                       end do
+                       call tintrp2a(  height(:,:,:,itime),    hges,dlon,dlat,nsig)  
+                       dpres=dpres!-zsges      !  remove terrain height from ob absolute height
+                       if(dpres <= 0_r_kind) cycle
+
+!**********************************CONVERT GEOP HEIGHT TO GEOM HEIGHT****!
+!   SHOULD NOT BE NEEDED FOR FV3 since I have delz in gemoetric height???
+!**********************************CONVERT GEOP HEIGHT TO GEOM HEIGHT****!
+  
                        if(diagprint .and. diagverbose >=1 .and. iazm==360 .and. igate==20) then
-                           write(*,*) "dpres   = ",dpres,igate
-                           write(*,*) "thishgt = ",thishgt,igate
-                           write(*,*) "zsges   = ",zsges,igate
+                           write(*,*) "Before grdcrd"
+                           write(*,*) "dpres   = ",dpres
+                           write(*,*) "thishgt = ",thishgt
+                           write(*,*) "zsges   = ",zsges
                        end if
-                  !    Convert observation height (in dpres) from meters to grid relative units.
-                       !call grdcrd(dpres,1,zges,nsig,-1)
-                       call grdcrd1(dpres,zges,nsig,-1)
-                    
+
+                       !hges << height << sum(delz)
+                       !Get vertical coordinate of observation given 2d interpolated height
+                       call grdcrd1(dpres,hges,nsig,-1)
+
                        if(diagprint .and. diagverbose >=1 .and. iazm==360 .and. igate==20) then
                            write(*,*) "After grdcrd"
-                           write(*,*) "dpres   = ",dpres,igate
-                           write(*,*) "thishgt = ",thishgt,igate
-                           write(*,*) "zsges   = ",zsges,igate
-                           write(*,*) "zges       = ",zges
-                           write(*,*) "pcoord     = ",pcoord
-                           write(*,*) "ges_psfc   = ",psfcsges
-                           !write(*,*) "geop_hgtl  = ",geop_hgtl(thislon,thislat,:,1)
+                           write(*,*) "dpres   = ",dpres
+                           write(*,*) "thishgt = ",thishgt
+                           write(*,*) "zsges   = ",zsges
+                           write(*,*) "ges_psfc= ",psfcsges
+                           write(*,*) "hges    = ",hges
                        end if
                      ! Interpolate guess dbz to observation location - cycle if below threshold.
-!                       call tintrp3(ges_dbz(:,:,:,itime),dbzgesin,dlon,dlat,dpres)
-!                       dbzCheck: if(dbzgesin >= mindbz .or. .true.) then
+                       if(use_dbz) then
+                          call tintrp3(ges_dbz(:,:,:,itime),dbzgesin,dlon,dlat,dpres)
+                          if(dbzgesin <= mindbz) cycle
+                       end if
+                       !dbzCheck: if(dbzgesin >= mindbz .and. use_dbz) then
+                       dbzCheck: if(use_dbz) then
                      !    Interpolate guess wind to observation location                                  
                           call tintrp3(ges_u(:,:,:,itime),ugesin,dlon,dlat,dpres)
                           call tintrp3(ges_v(:,:,:,itime),vgesin,dlon,dlat,dpres) !should these be dlat,dlon?
@@ -548,13 +663,13 @@ program drwsim
                           if(iazm90< zero) iazm90=iazm90+r360
                           drwpol(itilt,iazm,igate) = ugesin*cosazm*costilt  +vgesin*sinazm*costilt  +wgesin*sintilt 
                           ndata=ndata+1
-!                       end if dbzCheck
+                       end if dbzCheck
                     end if ifinside
                  end do loopOVERgates
               end do loopOVERazimuths
            end do loopOVERtilts
 
-           if(diagprint .and. diagverbose >= 2) print*,minval(drwpol),maxval(drwpol)
+           if(diagprint .and. diagverbose >= 1) write(*,*) "min/max drw: ",minval(drwpol),maxval(drwpol)
 
 
            !-------------BUFFERIZE--------------------------------------------------!
@@ -631,7 +746,6 @@ program drwsim
            close(10)       ! close bufr file
            close(11)       ! close l2rwbufr.table
            bufrisopen=.false.
-        
         end if ifKGRK
         deallocate(drwpol)
      end do loopOVERradars 
