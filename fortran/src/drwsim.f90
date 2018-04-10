@@ -32,6 +32,8 @@ program drwsim
   character(10):: idate
   real(r_kind),dimension(nsig)  :: zges
   real(r_kind),dimension(nsig)  :: hges
+  real(r_kind),dimension(nsig)  :: hges_z
+  real(r_kind),dimension(nsig)  :: hges_gpm
   real(r_kind),dimension(nsig+1):: prsi
   real(r_kind) :: cosazm
   real(r_kind) :: sinazm
@@ -42,8 +44,10 @@ program drwsim
   real(r_kind) :: wgesin
   real(r_kind) :: dbzgesin
   real(r_kind) :: zsges
+  real(r_kind) :: zsges_z
+  real(r_kind) :: zsges_gpm
   real(r_kind) :: psfcsges
-  real(r_kind) :: sin2,termg,termr,termrg,dpres
+  real(r_kind) :: sin2,termg,termr,termrg,dpres,dpres1,dpres2,zob
   real(r_kind) :: b,c,ha,epsh,h,aactual,a43,thistilt
   real(r_kind) :: thistiltr,selev0,celev0,thisrange,this_stahgt,thishgt
   real(r_kind) :: celev,selev,gamma,thisazimuthr,thisazimuth,rlon0,rlat0,stahgt, &
@@ -109,9 +113,11 @@ program drwsim
   real(r_kind),allocatable  ::     ges_v(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::     ges_w(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::      delz(:,:,:,:) ! (nlon,nlat,nsig,ntime)
+  real(r_kind),allocatable  :: geop_hgtl(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::      delp(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::   ges_dbz(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::  ges_sfcz(:,:    ) ! (nlon,nlat,    ,     )   
+  real(r_kind),allocatable  ::ges_sfcgpm(:,:    ) ! (nlon,nlat,    ,     )   
   real(r_kind),allocatable  ::    height(:,:,:,:) ! (nlon,nlat,nsig,ntime) 
   real(r_kind),allocatable  ::  ges_psfc(:,:,  :) ! (nlon,nlat,    ,ntime)
   real(r_kind),allocatable  ::  ges_prsi(:,:,:,:) ! (nlon,nlat,nsig,ntime)
@@ -350,6 +356,8 @@ program drwsim
   if(ier /= nf90_NoErr) STOP "ERROR INQ delz NETCDF STOP!"
   ier=nf90_get_var(ncid3d,delz_VarId,delz)
   if(ier /= nf90_NoErr) STOP "ERROR GET delz NETCDF STOP!"
+  allocate(geop_hgtl(nlon,nlat,nsig,ntime))
+  geop_hgtl=delz*grav ! do we convert to geopotential height?
 
   ! delp - pressure thickness [pa]
   allocate(delp(nlon,nlat,nsig,ntime))
@@ -394,14 +402,15 @@ program drwsim
   ier=nf90_open(nesteddata2d,nf90_NoWrite,ncid2d)
   if(ier /= nf90_NoErr) STOP "ERROR READ NETCDF STOP!"
 
-  ! HGTsfc (z)
-  allocate(ges_sfcz(nlon,nlat))
-  write(*,*) "Reading ges_sfcz"
-  ges_sfcz=0.0_r_kind !initialize
+  ! HGTsfc  (gpm) --> (m) is done by: Z=phi/g
+  allocate(ges_sfcgpm(nlon,nlat),ges_sfcz(nlon,nlat))
+  write(*,*) "Reading ges_sfcgpm"
+  ges_sfcgpm=0.0_r_kind !initialize
   ier=nf90_inq_varid(ncid2d,"HGTsfc", HGTsfc_VarId)
   if(ier /= nf90_NoErr) STOP "ERROR INQ HGTsfc NETCDF STOP!"
-  ier=nf90_get_var(ncid2d,HGTsfc_VarId,ges_sfcz)
+  ier=nf90_get_var(ncid2d,HGTsfc_VarId,ges_sfcgpm)
   if(ier /= nf90_NoErr) STOP "ERROR GET HGTsfc NETCDF STOP!"
+  ges_sfcz=ges_sfcgpm/grav ! is this how we convert to geometric height?
 
   ! PRESsfc
   allocate(ges_psfc(nlon,nlat,ntime))
@@ -464,44 +473,56 @@ program drwsim
 !     end do
 !  end do
 
+
+
   !--compute the geometric height
   allocate(height(nlon,nlat,nsig,ntime))
+  height = zero
   do itime=1,ntime
-     height = zero
-     do isig=1,nsig
-        height(:,:,isig,itime) = height(:,:,isig,itime) + delz(:,:,isig,ntime)
-       !height(:,:,isig,itime) = height(:,:,isig,itime) - ges_sfcz(:,:)
+     do isig=nsig,1,-1
+        if(isig==nsig) then
+           height(:,:,isig,itime)   =                          delz(:,:,isig,itime)
+        else
+           height(:,:,isig,itime)   = height(:,:,isig+1,itime)+delz(:,:,isig,itime)
+        end if
+        !height(:,:,isig,itime)    =                             delz(:,:,isig,ntime)
+        !-- subtract the model terrain height from model background.
+        !height(:,:,isig,itime)    =    height(:,:,isig,itime) - ges_sfcz(:,:)   !geometric
+        !geop_hgtl(:,:,isig,itime) = geop_hgtl(:,:,isig,itime) - ges_sfcgpm(:,:) !geopotential
      enddo
   enddo
+  geop_hgtl=height*grav
 
-   if(diagprint .and. diagverbose >= 2) then
-      write(*,*)"time     ", maxval(     time(      :)), minval(     time(      :)) 
-      write(*,*)"pfull    ", maxval(    pfull(    :  )), minval(    pfull(    :  )) 
-      write(*,*)"ges_u    ", maxval(    ges_u(:,:,:,:)), minval(    ges_u(:,:,:,:)) 
-      write(*,*)"ges_v    ", maxval(    ges_v(:,:,:,:)), minval(    ges_v(:,:,:,:))
-      write(*,*)"ges_w    ", maxval(    ges_w(:,:,:,:)), minval(    ges_w(:,:,:,:)) 
-      write(*,*)"height   ", maxval(   height(:,:,:,:)), minval(   height(:,:,:,:))
-      write(*,*)"ges_prsi ", maxval( ges_prsi(:,:,:,:)), minval( ges_prsi(:,:,:,:)) 
-      write(*,*)"glon     ", maxval(     glon(:,:    )), minval(     glon(:,:    ))
-      write(*,*)"glat     ", maxval(     glat(:,:    )), minval(     glat(:,:    ))
-      write(*,*)"ges_sfcz ", maxval( ges_sfcz(:,:    )), minval( ges_sfcz(:,:    ))
-      write(*,*)"ges_psfc ", maxval( ges_psfc(:,:,  :)), minval( ges_psfc(:,:,  :)) 
-      if(use_dbz) write(*,*)"ges_dbz  ", maxval(  ges_dbz(:,:,:,:)), minval(  ges_dbz(:,:,:,:)) 
-   end if
+  if(diagprint .and. diagverbose >= 2) then
+     write(*,*)"time       ", maxval(       time(      :)), minval(       time(      :)) 
+     write(*,*)"pfull      ", maxval(      pfull(    :  )), minval(      pfull(    :  )) 
+     write(*,*)"ges_u      ", maxval(      ges_u(:,:,:,:)), minval(      ges_u(:,:,:,:)) 
+     write(*,*)"ges_v      ", maxval(      ges_v(:,:,:,:)), minval(      ges_v(:,:,:,:))
+     write(*,*)"ges_w      ", maxval(      ges_w(:,:,:,:)), minval(      ges_w(:,:,:,:)) 
+     write(*,*)"height     ", maxval(     height(:,:,:,:)), minval(     height(:,:,:,:))
+     write(*,*)"ges_prsi   ", maxval(   ges_prsi(:,:,:,:)), minval(   ges_prsi(:,:,:,:)) 
+     write(*,*)"glon       ", maxval(       glon(:,:    )), minval(       glon(:,:    ))
+     write(*,*)"glat       ", maxval(       glat(:,:    )), minval(       glat(:,:    ))
+     write(*,*)"ges_sfcgpm ", maxval( ges_sfcgpm(:,:    )), minval( ges_sfcgpm(:,:    ))
+     write(*,*)"ges_sfcz   ", maxval(   ges_sfcz(:,:    )), minval(   ges_sfcz(:,:    ))
+     write(*,*)"ges_psfc   ", maxval(   ges_psfc(:,:,  :)), minval(   ges_psfc(:,:,  :)) 
+     if(use_dbz) write(*,*)"ges_dbz  ", maxval(  ges_dbz(:,:,:,:)), minval(  ges_dbz(:,:,:,:)) 
+  end if
 
-   !--Make sure we're not missing fields.
-   if(maxval(     time(      :)) == 0 .and. minval(     time(      :)) == 0) STOP 'MISSING TIME' 
-   if(maxval(    pfull(    :  )) == 0 .and. minval(    pfull(    :  )) == 0) STOP 'MISSING PCOORD' 
-   if(maxval(    ges_u(:,:,:,:)) == 0 .and. minval(    ges_u(:,:,:,:)) == 0) STOP 'MISSING U'  
-   if(maxval(    ges_v(:,:,:,:)) == 0 .and. minval(    ges_v(:,:,:,:)) == 0) STOP 'MISSING V' 
-   if(maxval(    ges_w(:,:,:,:)) == 0 .and. minval(    ges_w(:,:,:,:)) == 0) STOP 'MISSING W' 
-   if(maxval(   height(:,:,:,:)) == 0 .and. minval(   height(:,:,:,:)) == 0) STOP 'MISSING HEIGHT'
-   if(maxval( ges_prsi(:,:,:,:)) == 0 .and. minval( ges_prsi(:,:,:,:)) == 0) STOP 'MISSING PRESI' 
-   if(maxval(     glon(:,:    )) == 0 .and. minval(     glon(:,:    )) == 0) STOP 'MISSING GLON' 
-   if(maxval(     glat(:,:    )) == 0 .and. minval(     glat(:,:    )) == 0) STOP 'MISSING GLAT' 
-   if(maxval( ges_sfcz(:,:    )) == 0 .and. minval( ges_sfcz(:,:    )) == 0) STOP 'MISSING HGTSFC'
-   if(maxval( ges_psfc(:,:,  :)) == 0 .and. minval( ges_psfc(:,:,  :)) == 0) STOP 'MISSING PRESsfc'
-   if(maxval(  ges_dbz(:,:,:,:)) == 0 .and. minval(  ges_dbz(:,:,:,:)) == 0 .and. use_dbz) STOP 'MISSING DBZ' 
+  !--Make sure we're not missing fields.
+  if(maxval(       time(      :)) == 0 .and. minval(       time(      :)) == 0) STOP 'MISSING TIME' 
+  if(maxval(      pfull(    :  )) == 0 .and. minval(      pfull(    :  )) == 0) STOP 'MISSING PCOORD' 
+  if(maxval(      ges_u(:,:,:,:)) == 0 .and. minval(      ges_u(:,:,:,:)) == 0) STOP 'MISSING U'  
+  if(maxval(      ges_v(:,:,:,:)) == 0 .and. minval(      ges_v(:,:,:,:)) == 0) STOP 'MISSING V' 
+  if(maxval(      ges_w(:,:,:,:)) == 0 .and. minval(      ges_w(:,:,:,:)) == 0) STOP 'MISSING W' 
+  if(maxval(     height(:,:,:,:)) == 0 .and. minval(     height(:,:,:,:)) == 0) STOP 'MISSING HEIGHT'
+  if(maxval(   ges_prsi(:,:,:,:)) == 0 .and. minval(   ges_prsi(:,:,:,:)) == 0) STOP 'MISSING PRESI' 
+  if(maxval(       glon(:,:    )) == 0 .and. minval(       glon(:,:    )) == 0) STOP 'MISSING GLON' 
+  if(maxval(       glat(:,:    )) == 0 .and. minval(       glat(:,:    )) == 0) STOP 'MISSING GLAT' 
+  if(maxval( ges_sfcgpm(:,:    )) == 0 .and. minval( ges_sfcgpm(:,:    )) == 0) STOP 'MISSING HGTSFC'
+  if(maxval(   ges_sfcz(:,:    )) == 0 .and. minval(   ges_sfcz(:,:    )) == 0) STOP 'MISSING HGTSFC'
+  if(maxval(   ges_psfc(:,:,  :)) == 0 .and. minval(   ges_psfc(:,:,  :)) == 0) STOP 'MISSING PRESsfc'
+  if(maxval(    ges_dbz(:,:,:,:)) == 0 .and. minval(    ges_dbz(:,:,:,:)) == 0 .and. use_dbz) STOP 'MISSING DBZ' 
 
   !set up information needed to interpolate model to observation
   !*********************************
@@ -583,7 +604,7 @@ program drwsim
                        rlonloc=rad_per_meter*gamma*cos(thisazimuthr)
                        rlatloc=rad_per_meter*gamma*sin(thisazimuthr)
                        call invtllv(rlonloc,rlatloc,rlon0,clat0,slat0,rlonglob,rlatglob)
-                       !-Find grid relative location of the radar.
+
                        if(radar_location) then
                           radar_lat=dflat(irid) !lat/lons stored as deg.
                           radar_lon=dflon(irid)
@@ -591,18 +612,20 @@ program drwsim
                           if(radar_lon<zero) radar_lon=radar_lon+r360
                           radar_lon=radar_lon*deg2rad !convert to radians.
                           radar_lat=radar_lat*deg2rad
+                          !-Find grid relative location of the radar.
                           call tll2xy(radar_lon,radar_lat,radar_x,radar_y)
                           if(diagprint .and. diagverbose >= 3) write(*,*) "Radar x,y location is:",radar_x,radar_y 
                           if(diagprint .and. diagverbose >= 3) write(*,*) "Radar lon,lat is     :",radar_lon*rad2deg,radar_lat*rad2deg
                           radar_location=.false. ! turn off get radar x/y until next radar is processed.
                        end if
-                       !-Find grid relative location of the ob.
+
                        thislat=rlatglob*rad2deg
                        thislon=rlonglob*rad2deg
                        if(thislon>=r360) thislon=thislon-r360
                        if(thislon<zero) thislon=thislon+r360
                        thislat=thislat*deg2rad
                        thislon=thislon*deg2rad
+                       !-Find grid relative location of the ob.
                        call tll2xy(thislon,thislat,dlon,dlat)
                        if(diagprint .and. diagverbose >= 5) write(*,*) "ob x,y location is   :",dlon,dlat
                        if(diagprint .and. diagverbose >= 5) write(*,*) "ob lon,lat is        :",thislon*rad2deg,thislat*rad2deg
@@ -610,37 +633,58 @@ program drwsim
 !**********************************DO WIND ROTATION IF RADIAL WIND****!
 !   SHOULD NOT BE NEEDED FOR FV3???
 !**********************************DO WIND ROTATION IF RADIAL WIND****!
-                  
+
                        !--Interpolate some fields to obs location 
-                       call tintrp2a_single_level(ges_sfcz,   zsges,dlon,dlat)
-                       call tintrp2a_single_level(ges_psfc,psfcsges,dlon,dlat)
-                       call tintrp2a(  height(:,:,:,itime),    hges,dlon,dlat,nsig)  
-                       dpres=dpres!-zsges      !  remove terrain height from ob absolute height
-                       if(dpres <= 0_r_kind) cycle
+                       !call tintrp2a_single_level(  ges_psfc,  psfcsges, dlon, dlat)
+                       call tintrp2a_single_level(  ges_sfcz,   zsges, dlon, dlat) ! ges_sfcz = ges_sfcgpm/grav
+                       !call tintrp2a_single_level(ges_sfcgpm, zsges_gpm, dlon, dlat) ! model variable
+                       call tintrp2a(    height(:,:,:,itime),    hges, dlon, dlat, nsig)  ! sum delz - model variable
+                       !call tintrp2a( geop_hgtl(:,:,:,itime),  hges_gpm, dlon, dlat, nsig)  ! geop_hgtl=delz*grav
+
+                       dpres=dpres-zsges      !  remove terrain height from ob absolute height
+
+                       if(dpres <= 0_r_kind) then
+                         write(*,*) "the ob height is below ground... cycling."
+                         cycle
+                       end if
+
+
+
+                       if(diagprint .and. diagverbose >=1 .and. iazm==360 .and. igate==20) then
+                           write(*,*) "Before grdcrd"
+                           write(*,*) "thishgt = ",thishgt
+                           write(*,*) "zsges   = ",zsges
+                           write(*,*) "dpres   = ",dpres
+                           write(*,*) "hges    = ",hges
+                       end if
 
 !**********************************CONVERT GEOP HEIGHT TO GEOM HEIGHT****!
 !   SHOULD NOT BE NEEDED FOR FV3 since I have delz in gemoetric height???
+!                         sin2  = sin(thislat)*sin(thislat)
+!                         termg = grav_equator * ((one+somigliana*sin2)/sqrt(one-eccentricity*eccentricity*sin2))
+!                         termr = semi_major_axis /(one + flattening + grav_ratio - two*flattening*sin2)
+!                         termrg = (termg/grav)*termr
+!                         do n=1,nsig
+!                            zges(n) = (termr*hges(n)) / (termrg-hges(n))  ! eq (23)
+!                         end do
+!                    !    Convert observation height (in dpres) from meters to grid relative units.  
+!                    !    Save the observation height in zob for later use.
+!                         zob = dpres
+!                         call grdcrd(dpres1,1,zges,nsig,1)
 !**********************************CONVERT GEOP HEIGHT TO GEOM HEIGHT****!
   
-                       if(diagprint .and. diagverbose >=1 .and. iazm==360 .and. igate==20) then
-                           write(*,*) "Before grdcrd"
-                           write(*,*) "dpres   = ",dpres
-                           write(*,*) "thishgt = ",thishgt
-                           write(*,*) "zsges   = ",zsges
-                       end if
-
                        !hges << height << sum(delz)
                        !Get vertical coordinate of observation given 2d interpolated height
                        call grdcrd1(dpres,hges,nsig,-1)
 
                        if(diagprint .and. diagverbose >=1 .and. iazm==360 .and. igate==20) then
-                           write(*,*) "After grdcrd"
-                           write(*,*) "dpres   = ",dpres
+                           write(*,*) "After grdcrd - we want dpres in grid coordinates rather than meters"
                            write(*,*) "thishgt = ",thishgt
                            write(*,*) "zsges   = ",zsges
-                           write(*,*) "ges_psfc= ",psfcsges
+                           write(*,*) "dpres   = ",dpres
                            write(*,*) "hges    = ",hges
                        end if
+                       dpres=dpres
                      ! Interpolate guess dbz to observation location - cycle if below threshold.
                        if(use_dbz) then
                           call tintrp3(ges_dbz(:,:,:,itime),dbzgesin,dlon,dlat,dpres)

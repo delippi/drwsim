@@ -40,7 +40,7 @@ def main():
    date=2017101500      # date and time of the observations                    #
    STAID='KGRK'         # station id you want to plot.                         #
                         # tilt angle you want to plot.                         #
-   anel_list=[0.5]#,1,1.5,2,2.5,3,3.5,4,4.5,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+   anel_list=[8.0]#,1,1.5,2,2.5,3,3.5,4,4.5,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
    field='RADIAL WIND'  # you can plot 'RADIAL WIND' or 'REFLECTIVITY'         #
    ithin=20
    gatespc=250.*ithin
