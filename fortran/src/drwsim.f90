@@ -56,7 +56,7 @@ program drwsim
                   radar_x,radar_y,radar_lon,radar_lat
   !real(r_kind),allocatable :: delz(:,:),height(:,:),delp(:,:)
   real(r_kind),allocatable :: drwpol(:,:,:) !tilt,azm,gate
-  integer(i_kind) :: irid,itilt,iazm,igate,itime,iazm90,isig
+  integer(i_kind) :: irid,itilt,iazm,igate,itime,iazm90,isig,numtilts
 
 
   character(4) this_staid
@@ -75,7 +75,9 @@ program drwsim
   integer(i_kind) :: ithin=4_i_kind            ! Gates to skip for ob thinning (must be >=1)
   character(4)    :: staid='KOUN'              ! default station ID to use
   real(r_kind)    :: mindbz=-999_r_kind        ! minimum dbz value needed at a location to create a drw
-  real(r_kind),dimension(25)    :: tilts=0_r_kind ! initialize the tilts to zero-degrees
+  !real(r_kind),dimension(25)    :: tilts=0_r_kind ! initialize the tilts to zero-degrees
+  real(r_kind),allocatable :: tilts(:)
+  integer(i_kind) :: vcpid=215_i_kind          ! default volume coverage pattern (VCP). 
   integer(i_kind) :: azimuths=360_i_kind       ! number of azimuths
   integer(i_kind) :: gatespc=250_i_kind        ! gate spacing (meters)
   integer(i_kind) :: numgates=400_i_kind       ! number of gates
@@ -174,9 +176,10 @@ program drwsim
   character(len=180)  :: bufroutfile
 
   namelist/drw/iadate,ntime,nelv,nesteddata3d,nesteddata2d,nestedgrid,bufroutfile,&
-               mintilt,maxtilt,staid,mindbz,tilts,maxobrange,minobrange,azimuths,ithin,&
-               gatespc,datapath,diagprint,diagverbose,radarcsv,ak_bk,use_dbz,nesteddatadbz,mindbz
+               mintilt,maxtilt,staid,mindbz,vcpid,maxobrange,minobrange,azimuths,ithin,&
+               gatespc,datapath,diagprint,diagverbose,radarcsv,ak_bk,use_dbz,nesteddatadbz
 
+     
 
 !--------------------------------------------------------------------------------------!
 !                            END OF ALL DECLARATIONS
@@ -198,6 +201,33 @@ program drwsim
   read(*,drw)
   !----READ NAMELIST----
 
+  !----CREATE VOLUME COVERAGE PATTERN (VCP)----start 
+  if(vcpid == 215) then
+     numtilts=15
+     allocate(tilts(numtilts))
+     tilts(1:numtilts)=(/ real(r_kind) :: 0.5,0.9,1.3,1.8,2.4,3.1,4.0,5.1,6.4,8.0,10.0,12.0,14.0,16.7/)
+   else if(vcpid == 11 .or. vcpid == 211) then
+     numtilts=28_i_kind
+     allocate(tilts(numtilts))
+     tilts(1:numtilts)=(/ real(r_kind) :: 0.5,0.5,1.5,1.5,2.4,2.4,3.4,3.4,4.3,4.3,5.3,5.3,6.2,6.2,7.5,&
+                                          7.5,8.7,8.7,10.0,10.0,12.0,12.0,14.0,14.0,16.7,16.7,19.5,19.5/)
+   else if(vcpid == 12 .or. vcpid == 212) then
+     numtilts=28_i_kind
+     allocate(tilts(numtilts))
+     tilts(1:numtilts)=(/ real(r_kind) :: 0.5,0.5,0.9,0.9,1.3,1.3,1.8,1.8,2.4,2.4,3.1,3.1,4.0,4.0,5.1,5.1,&
+                                          6.4,6.4,8.0,8.0,10.0,10.0,12.5,12.5,15.6,15.6,19.5,19.5/)
+   else if(vcpid == 21 .or. vcpid == 121 .or. vcpid == 221) then
+     numtilts=18_i_kind
+     allocate(tilts(numtilts))
+     tilts(1:numtilts)=(/ real(r_kind) :: 0.5,0.5,1.5,1.5,2.4,2.4,3.4,3.4,4.3,4.3,6.0,6.0,9.9,9.9,14.6,&
+                                          14.6,19.5,19.5/)
+   else if(vcpid == 999 ) then ! my vcp
+     numtilts=25_i_kind
+     allocate(tilts(numtilts))
+     tilts(1:numtilts)=(/ real(r_kind) :: 0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0,6.0,7.0,8.0,9.0,10.0,&
+                                          11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0,20.0/)
+   end if
+  !----CREATE VOLUME COVERAGE PATTERN (VCP)----end
 
 
   gatespc=gatespc*ithin
