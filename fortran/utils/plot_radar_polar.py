@@ -14,6 +14,7 @@ from progressbar import AnimatedMarker, Bar, BouncingBar, Counter, ETA, \
 import time
 import matplotlib.colors as mcolors
 import pdb
+import subprocess
 
 def make_colormap(seq):
     """Return a LinearSegmentedColormap
@@ -40,9 +41,25 @@ def main():
    date=2017101500      # date and time of the observations                    #
    STAID='KGRK'         # station id you want to plot.                         #
                         # tilt angle you want to plot.                         #
-   anel_list=[8.0]#,1,1.5,2,2.5,3,3.5,4,4.5,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+   anel_list=[0.5]#,1,1.5,2,2.5,3,3.5,4,4.5,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
    field='RADIAL WIND'  # you can plot 'RADIAL WIND' or 'REFLECTIVITY'         #
-   ithin=20
+   with open('/scratch4/NCEPDEV/meso/save/Donald.E.Lippi/PhD-globalOSSE/obssim/fortran/run/namelist','r') as searchfile:
+        for line in searchfile:
+            if "ithin" in line:
+                ithin=line
+                ps1=subprocess.Popen(("echo",ithin), stdout=subprocess.PIPE)
+                ithin=subprocess.check_output(("cut","-f","2","-d","="),stdin=ps1.stdout).strip("\n")
+                ps2=subprocess.Popen(("echo",ithin), stdout=subprocess.PIPE)
+                ithin=int(subprocess.check_output(("cut","-f","1","-d",","),stdin=ps2.stdout).strip("\n"))
+                break
+        for line in searchfile:
+            if "azimuths" in line:
+                azimuths=line
+                ps1=subprocess.Popen(("echo",azimuths), stdout=subprocess.PIPE)
+                azimuths=subprocess.check_output(("cut","-f","2","-d","="),stdin=ps1.stdout).strip("\n")
+                ps2=subprocess.Popen(("echo",azimuths), stdout=subprocess.PIPE)
+                azimuths=float(subprocess.check_output(("cut","-f","1","-d","."),stdin=ps2.stdout).strip("\n"))
+                break
    gatespc=250.*ithin
 ##### END OF USER DEFINED SETTINGS ##############################################
    for anel0 in anel_list:
@@ -130,7 +147,7 @@ def main():
     widgetstring=STAID+' '+str(anel0)
     widgets=[widgetstring+': [',Percentage(),' ',Timer(),'] ', Bar(),' (', ETA(), ') ']
     bar = ProgressBar(widgets=widgets)
-    for i in bar(xrange(360)): # for every azimuth angle ...
+    for i in bar(xrange(int(360./azimuths))): # for every azimuth angle ...
         #print(i,'/',len(anaz))
         for j in xrange(len(radii[i])): # ... loop over every observation distance from radar ...
             for k in xrange(len(r[i])): # ... and loop over an equally 125m spaced array ...
@@ -165,7 +182,7 @@ def main():
               +'  Date: '+str(date)+MM.zfill(2),fontsize=15,y=1.12) # add a useful title.
     ax.grid(True)
     plt.show() # make the plot.
-    plt.savefig('../figs/'+STAID+'_'+str(anel[0])+'_'+str(date)+MM.zfill(2)+'.png'\
+    plt.savefig('../figs/'+str(ithin*250)+'_'+STAID+'_'+str(anel[0])+'_'+str(date)+MM.zfill(2)+'.png'\
                 ,bbox_inches='tight') # save figure.
 
     #7. CALCULATE SOME STATS
