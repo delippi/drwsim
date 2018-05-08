@@ -7,7 +7,7 @@ iadate(4)=00,      !hh (utc)
 
 ntime=1,           ! number of times in nc file
 staid='KGRK',
-ithin=40,          ! Gate thinning frequency for RW obs (must be >=1).
+ithin=20,          ! Gate thinning frequency for RW obs (must be >=1).
                    ! 250-m * ithin = new gate spacing. (e.g., ithin=20 -> 5-km) 
 
 mintilt=0.5,       ! Only use tilt angles >= mintilt [degrees]
@@ -29,10 +29,10 @@ radarcsv='radar_sim_dev.csv',
 
 !vcpid=215,
 !vcpid=211,
-!vcpid=212,
+vcpid=212,
 !vcpid=221,
 !vcpid=999,
-vcpid=998,
+!vcpid=998,
 /
 
 &NC

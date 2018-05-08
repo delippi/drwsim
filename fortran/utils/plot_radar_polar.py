@@ -41,7 +41,8 @@ def main():
    date=2017101500      # date and time of the observations                    #
    STAID='KGRK'         # station id you want to plot.                         #
                         # tilt angle you want to plot.                         #
-   anel_list=[0.5]#,1,1.5,2,2.5,3,3.5,4,4.5,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+   #anel_list=[0.5]#,1,1.5,2,2.5,3,3.5,4,4.5,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+   vcpid=212
    field='RADIAL WIND'  # you can plot 'RADIAL WIND' or 'REFLECTIVITY'         #
    with open('/scratch4/NCEPDEV/meso/save/Donald.E.Lippi/PhD-globalOSSE/obssim/fortran/run/namelist','r') as searchfile:
         for line in searchfile:
@@ -60,6 +61,18 @@ def main():
                 ps2=subprocess.Popen(("echo",azimuths), stdout=subprocess.PIPE)
                 azimuths=float(subprocess.check_output(("cut","-f","1","-d","."),stdin=ps2.stdout).strip("\n"))
                 break
+        #for line in searchfile:
+        #    if "vcpid" in line and not "!" in line :
+        #        vcpid=line
+        #        ps1=subprocess.Popen(("echo",ithin), stdout=subprocess.PIPE)
+        #        vcpid=subprocess.check_output(("cut","-f","2","-d","="),stdin=ps1.stdout).strip("\n")
+        #        ps2=subprocess.Popen(("echo",ithin), stdout=subprocess.PIPE)
+        #        vcpid=int(subprocess.check_output(("cut","-f","1","-d",","),stdin=ps2.stdout).strip("\n"))
+        #        break
+
+   if(vcpid==212): anel_list=[0.5,0.9,1.3,1.8,2.4,3.1,4.0,5.1,6.4,8.0,10.0,12.5,15.6,19.5]
+   if(vcpid==998): anel_list=[0.5]
+
    gatespc=250.*ithin
 ##### END OF USER DEFINED SETTINGS ##############################################
    for anel0 in anel_list:
@@ -147,7 +160,7 @@ def main():
     widgetstring=STAID+' '+str(anel0)
     widgets=[widgetstring+': [',Percentage(),' ',Timer(),'] ', Bar(),' (', ETA(), ') ']
     bar = ProgressBar(widgets=widgets)
-    for i in bar(xrange(int(360./azimuths))): # for every azimuth angle ...
+    for i in bar(xrange(0,360,int(360./azimuths))): # for every azimuth angle ...
         #print(i,'/',len(anaz))
         for j in xrange(len(radii[i])): # ... loop over every observation distance from radar ...
             for k in xrange(len(r[i])): # ... and loop over an equally 125m spaced array ...
@@ -182,7 +195,7 @@ def main():
               +'  Date: '+str(date)+MM.zfill(2),fontsize=15,y=1.12) # add a useful title.
     ax.grid(True)
     plt.show() # make the plot.
-    plt.savefig('../figs/'+str(ithin*250)+'_'+STAID+'_'+str(anel[0])+'_'+str(date)+MM.zfill(2)+'.png'\
+    plt.savefig('../figs/'+str(ithin*250)+'_'+STAID+'_'+str(anel[0])+'_'+str(date)+MM.zfill(2)+'_'+str(vcpid)+'.png'\
                 ,bbox_inches='tight') # save figure.
 
     #7. CALCULATE SOME STATS
