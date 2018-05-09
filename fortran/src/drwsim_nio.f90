@@ -153,7 +153,7 @@ program drwsim
   real(r_kind), allocatable, dimension(:)  :: zges1d
   real(r_kind), allocatable, dimension(:)  :: zges1d_sliced
   logical :: geometric_height_switch
-  real(r_kind) :: dlonm1,dlonp1,dlatm1,dlatp1
+  real(r_kind) :: dlonm1,dlonp1,dlatm1,dlatp1,radar_xp1,radar_yp1,radar_xm1,radar_ym1
   integer(i_kind) :: azmspc
 
 
@@ -598,6 +598,7 @@ program drwsim
 
                        !--Determine the x,y (grid relative location) of the radar location.
                        !--Only need to do this once per radar.
+                       radar_location=.false. ! do I even need this?
                        if(radar_location) then
                           radar_lat=dflat(irid) !lat/lons stored as deg.
                           radar_lon=dflon(irid)
@@ -607,7 +608,13 @@ program drwsim
                           radar_y=radar_lat
                           call grdcrd1(radar_y,rlats*rad2deg,nlat,-1) !lats are in descending order
                           call grdcrd1(radar_x,rlons*rad2deg,nlon, 1)
-                          call tintrp2a_single_level(ges_z,zsges,radar_x,radar_y)
+                          !call tintrp2a_single_level(ges_z,zsges,radar_x,radar_y)
+                          radar_xm1=int(radar_x)
+                          radar_xp1=int(radar_x)+2
+                          radar_ym1=int(radar_y)
+                          radar_yp1=int(radar_y)+2
+                          call tintrp2a_single_level_sliced(ges_z(radar_xm1:radar_xp1,radar_ym1:radar_yp1),&
+                                                      zsges,radar_x-int(radar_x)+2,radar_y-int(radar_y)+2)
                           radar_location=.false. ! turn off get radar x/y until next radar is processed.
                        end if
 
@@ -622,7 +629,12 @@ program drwsim
                        call grdcrd1(dlon,rlons*rad2deg,nlon, 1)
 
                        !--Interpolate surface height to grid relative ob location (dlon,dlat). 
-                       call tintrp2a_single_level(ges_z,zsges,dlon,dlat)
+                       dlonm1=int(dlon)
+                       dlonp1=int(dlon)+2
+                       dlatm1=int(dlat)
+                       dlatp1=int(dlat)+2
+                       zsges=0.0_r_kind
+                       call tintrp2a_single_level_sliced(ges_z(dlonm1:dlonp1,dlatm1:dlatp1),zsges,dlon-int(dlon)+2,dlat-int(dlat)+2)
                        !--Remove terrain height from ob absolute height and reject if below ground.
                        if(zsges>=dpres) then
                          write(*,*) 'zsges =',zsges,'is greater than dpres',dpres,'. Rejecting ob.'
@@ -651,11 +663,13 @@ program drwsim
                        if(allocated(zges1d_sliced)) deallocate(zges1d_sliced)
                        allocate(zges1d_sliced(nsig))
                        zges1d_sliced(nsig)=0.0_r_kind ! initialize/reset after each iteration
-                       dlonm1=int(dlon); dlonp1=int(dlon)+2
-                       dlatm1=int(dlat); dlatp1=int(dlat)+2
+                       dlonm1=int(dlon)
+                       dlonp1=int(dlon)+2
+                       dlatm1=int(dlat)
+                       dlatp1=int(dlat)+2
                        do k=1,nsig
                           call tintrp2a_single_level_sliced(zges(dlonm1:dlonp1,dlatm1:dlatp1,k,itime),&
-                                                  zges1d_sliced(k),dlon-dlonp1,dlat-dlatp1)
+                                                  zges1d_sliced(k),dlon-int(dlon)+2,dlat-int(dlat)+2)
                        end do
 
                        !--Get vertical coordinate of observation given height of column at ob location.
