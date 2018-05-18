@@ -16,6 +16,7 @@ program drwsim
   implicit none
 
   integer(i_kind)     :: ndata
+  integer(i_kind)     :: nradars
   integer(i_kind)     :: mindat
 
   ! Declare local parameters
@@ -24,7 +25,6 @@ program drwsim
   real(r_kind),parameter :: r360        = 360.0_r_kind
 
 !--General declarations
-  integer(i_kind) :: n
   integer(i_kind) :: iret
   integer(i_kind),dimension(4) :: iadate
   integer(i_kind),dimension(4) :: intdate
@@ -35,11 +35,6 @@ program drwsim
   character(2) :: mn
   character(10):: cdate
   
-!  real(r_kind),dimension(nsig)  :: zges
-!  real(r_kind),dimension(nsig)  :: hges
-!  real(r_kind),dimension(nsig)  :: hges_z
-!  real(r_kind),dimension(nsig)  :: hges_gpm
-  real(r_kind),dimension(nsig+1):: prsi
   real(r_kind) :: cosazm
   real(r_kind) :: sinazm
   real(r_kind) :: costilt
@@ -49,12 +44,9 @@ program drwsim
   real(r_kind) :: wgesin
   real(r_kind) :: dbzgesin
   real(r_kind) :: zsges
-  real(r_kind) :: zsges_z
-  real(r_kind) :: zsges_gpm
-  real(r_kind) :: psfcsges
-  real(r_kind) :: sin2,termg,termr,termrg,dpres,dpres_sliced,zob
+  real(r_kind) :: dpres,zob
   real(r_kind) :: b,c,ha,epsh,h,aactual,a43,thistilt
-  real(r_kind) :: thistiltr,selev0,celev0,thisrange,this_stahgt,thishgt
+  real(r_kind) :: thistiltr,selev0,celev0,thisrange,thishgt
   real(r_kind) :: celev,selev,gamma,thisazimuthr,thisazimuth,rlon0,rlat0,stahgt, &
                   clat0,slat0,dlat,dlon,thislon,thislat, &
                   rlonloc,rlatloc,rlonglob,rlatglob,rad_per_meter, &
@@ -63,9 +55,7 @@ program drwsim
   real(r_kind),allocatable :: drwpol(:,:,:) !tilt,azm,gate
   integer(i_kind) :: irid,itilt,iazm,igate,itime,iazm90,isig
 
-
   character(4) this_staid
-  character(5) str_gatespc
   logical   :: diagprint
   logical   :: inside
   logical   :: bufrisopen
@@ -73,7 +63,7 @@ program drwsim
   integer   :: diagverbose
 
   !---------DEFAULT SETTINGS---------!
-  character(6)    :: datatype = 'NEMSIO'       ! Input data format for reading (NEMSIO or NETCDF)
+  character(6)    :: datatype = 'NEMSIO'       ! Input data format for reading (NEMSIO or *NETCDF) *doesn't work
   integer(i_kind) :: maxobrange=250000_i_kind  ! Range (m) *within* which to use observations 
   integer(i_kind) :: minobrange=20000_i_kind   ! Range (m) *outside* of which
   real(r_kind)    :: mintilt=0.0_r_kind        ! Only use tilt(elevation) angles (deg) >= this number 
@@ -81,7 +71,6 @@ program drwsim
   integer(i_kind) :: ithin=4_i_kind            ! Gates to skip for ob thinning (must be >=1)
   character(4)    :: staid='KOUN'              ! default station ID to use
   real(r_kind)    :: mindbz=-999_r_kind        ! minimum dbz value needed at a location to create a drw
-  !real(r_kind),dimension(25)    :: tilts=0_r_kind ! initialize the tilts to zero-degrees
   real(r_kind),allocatable :: tilts(:)
   integer(i_kind) :: vcpid=212_i_kind          ! default volume coverage pattern (VCP). 
   integer(i_kind) :: azimuths=360_i_kind       ! number of azimuths
@@ -93,28 +82,12 @@ program drwsim
   !----------------------------------------------!
 
   !---------NETCDF/NEMSIO VARS---------!
-  integer(i_kind) :: ncid3d
-  integer(i_kind) :: ncid2d
-  integer(i_kind) :: ncidakbk
-  integer(i_kind) :: ncidgs
-  integer(i_kind) :: nciddbz
-  integer(i_kind) :: ier
-  integer(i_kind) :: ndim
-  character(12)   :: name2d
-!  real(r_kind),allocatable  ::      time(      :) ! (    ,    ,    ,ntime)
-!  real(r_kind),allocatable  ::     pfull(    :  ) ! (    ,    ,nsig,     )
   real(r_kind),allocatable  ::     ges_u(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::     ges_v(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::     ges_w(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::      delz(:,:,:,:) ! (nlon,nlat,nsig,ntime)
-!  real(r_kind),allocatable  :: geop_hgtl(:,:,:,:) ! (nlon,nlat,nsig,ntime)
-!  real(r_kind),allocatable  ::      delp(:,:,:,:) ! (nlon,nlat,nsig,ntime)
+  real(r_kind),allocatable  ::      delp(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::   ges_dbz(:,:,:,:) ! (nlon,nlat,nsig,ntime)
-!  real(r_kind),allocatable  ::  ges_sfcz(:,:    ) ! (nlon,nlat,    ,     )   
-!  real(r_kind),allocatable  ::ges_sfcgpm(:,:    ) ! (nlon,nlat,    ,     )   
-!  real(r_kind),allocatable  ::    height(:,:,:,:) ! (nlon,nlat,nsig,ntime) 
-!  real(r_kind),allocatable  ::  ges_psfc(:,:,  :) ! (nlon,nlat,    ,ntime)
-!  real(r_kind),allocatable  ::  ges_prsi(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   !----------------------------------------------!
 
   ! ALL NEMSIO ADDITIONS HERE BEFORE SORTING 
@@ -124,42 +97,33 @@ program drwsim
   integer(i_kind) :: nfhour
   integer(i_kind) :: ilat
   integer(i_kind) :: ilon
-  real(nemsio_realkind), dimension(nlon*nlat) :: nems_wrk
-  real(r_single),allocatable,dimension(:,:,:) :: nems_vcoord
-  real(r_single),allocatable,dimension(:)     :: lats
-  real(r_single),allocatable,dimension(:)     :: lons
-  real(r_single),allocatable,dimension(:)     :: rlats
-  real(r_single),allocatable,dimension(:)     :: rlons
-  real(r_single),allocatable  ::  glat1d(:) ! (nlon,nlat,    ,     )
-  real(r_single),allocatable  ::  glon1d(:) ! (nlon,nlat,    ,     )
-  real(r_kind),   allocatable, dimension(:,:)  :: ges_ps
-  real(r_kind),   allocatable, dimension(:)   :: ak
-  real(r_kind),   allocatable, dimension(:)   :: bk
-  real(r_kind), allocatable, dimension(:,:,:) :: presi
-  real(r_kind), allocatable, dimension(:,:,:) :: hgti
-  real(r_kind), dimension(nlon*nlat) :: u1d
-  real(r_kind), dimension(nlon*nlat) :: v1d
-  real(r_kind), dimension(nlon*nlat) :: w1d
-  real(r_kind), dimension(nlon*nlat) :: sz1d
-  real(r_kind), dimension(nlon*nlat) :: sp1d
-  real(r_kind), dimension(nlon*nlat) :: dz1d
-  real(r_kind) ::  hgt
-  real(r_kind), allocatable,dimension(:,:) :: ges_z
-  integer :: k
-  integer :: npts
-  real(r_kind), allocatable, dimension(:)   :: rwork2d
-  real(r_kind), allocatable, dimension(:,:) :: work
-  real(r_kind), allocatable, dimension(:,:,:,:)  :: zges
-  real(r_kind), allocatable, dimension(:)  :: zges1d
-  real(r_kind), allocatable, dimension(:)  :: zges1d_sliced
-  logical :: geometric_height_switch
-  real(r_kind) :: dlonm1,dlonp1,dlatm1,dlatp1,radar_xp1,radar_yp1,radar_xm1,radar_ym1
+  integer(i_kind) :: k
   integer(i_kind) :: azmspc
-
-
-
-
-
+  real(r_single),allocatable,dimension(:,:,:  ) :: nems_vcoord
+  real(r_single),allocatable,dimension(:      ) :: lats
+  real(r_single),allocatable,dimension(:      ) :: lons
+  real(r_single),allocatable,dimension(:      ) :: rlats
+  real(r_single),allocatable,dimension(:      ) :: rlons
+  real(r_kind),  allocatable,dimension(:,:    ) :: ges_ps
+  real(r_kind),  allocatable,dimension(:      ) :: ak
+  real(r_kind),  allocatable,dimension(:      ) :: bk
+  real(r_kind),  allocatable,dimension(:,:,:  ) :: presi
+  real(r_kind),  allocatable,dimension(:,:,:  ) :: hgti
+  real(r_kind),  allocatable,dimension(:,:    ) :: ges_z
+  real(r_kind),  allocatable,dimension(:,:    ) :: work
+  real(r_kind),  allocatable,dimension(:,:,:,:) :: zges
+  real(r_kind),  allocatable,dimension(:,:,:,:) :: pges
+  real(r_kind),  allocatable,dimension(:      ) :: zges1d_sliced
+  real(r_kind),              dimension(nlon*nlat) :: u1d
+  real(r_kind),              dimension(nlon*nlat) :: v1d
+  real(r_kind),              dimension(nlon*nlat) :: w1d
+  real(r_kind),              dimension(nlon*nlat) :: sz1d
+  real(r_kind),              dimension(nlon*nlat) :: sp1d
+  real(r_kind),              dimension(nlon*nlat) :: dz1d
+  real(r_kind),              dimension(nlon*nlat) :: dp1d
+  real(r_kind) :: dlonm1,dlonp1,dlatm1,dlatp1,radar_xa,radar_ya,radar_xb,radar_yb
+  logical :: geometric_height_switch
+  logical :: test_delzdelp_vs_akbk 
 
 
   !---------GLOBAL RADAR CSV FILE VARS---------!
@@ -221,10 +185,6 @@ program drwsim
 !                            !
 !--------------------------------------------------------------------------------------!
 
-  !--Call Timer
-  call date_and_time(values=time_array_0)
-  start_time = time_array_0(5)*3600 + time_array_0(6)*60 + time_array_0(7) + time_array_0(8)*0.001
-
   !--Set up the constants module used here
   call init_constants_derived
   call init_constants(.true.)    !initialize regional constants
@@ -235,33 +195,34 @@ program drwsim
   !----READ NAMELIST----
   open(11,file='namelist')
   read(11,drw)
-  if(datatype == 'NETCDF') read(11,nc)
   if(datatype == 'NEMSIO') read(11,nio)
   !----READ NAMELIST----
 
   !----CREATE VOLUME COVERAGE PATTERN (VCP)----start 
+  !----SIMPLIFICATION NOTES:
+  !    Most precipitation vcps have multiple scans at each layer.
+  !    Further, there are SAILS1,2,&3 which jump back to 0.5 every so often.
+  !    All simulated obs are assumed to be valid at the background timestamp.
+  !    I cannot include this, because I do not have minutely output to do so.
   if(vcpid == 215) then
      nelv=15
      allocate(tilts(nelv))
      tilts(1:nelv)=(/ real(r_kind) :: 0.5,0.9,1.3,1.8,2.4,3.1,4.0,5.1,6.4,8.0,10.0,12.0,14.0,16.7/)
    else if(vcpid == 11 .or. vcpid == 211) then
-     nelv=28_i_kind
+     !SIMPLIFIED VCP 215 - the actual VCP has 2 scans at each level (28 total tilts).
+     nelv=14_i_kind
      allocate(tilts(nelv))
-     tilts(1:nelv)=(/ real(r_kind) :: 0.5,0.5,1.5,1.5,2.4,2.4,3.4,3.4,4.3,4.3,5.3,5.3,6.2,6.2,7.5,&
-                                          7.5,8.7,8.7,10.0,10.0,12.0,12.0,14.0,14.0,16.7,16.7,19.5,19.5/)
+     tilts(1:nelv)=(/ real(r_kind) :: 0.5,1.5,2.4,3.4,4.3,5.3,6.2,7.5,8.7,10.0,12.0,14.0,16.7,19.5/)
    else if(vcpid == 12 .or. vcpid == 212) then
-     !nelv=28_i_kind
-     !allocate(tilts(nelv))
-     !tilts(1:nelv)=(/ real(r_kind) :: 0.5,0.5,0.9,0.9,1.3,1.3,1.8,1.8,2.4,2.4,3.1,3.1,4.0,4.0,5.1,5.1,&
-     !                                     6.4,6.4,8.0,8.0,10.0,10.0,12.5,12.5,15.6,15.6,19.5,19.5/)
+     !SIMPLIFIED VCP 212 - the actual VCP has 2 scans at each level (28 total tilts).
      nelv=14_i_kind
      allocate(tilts(nelv))
      tilts(1:nelv)=(/ real(r_kind) :: 0.5,0.9,1.3,1.8,2.4,3.1,4.0,5.1,6.4,8.0,10.0,12.5,15.6,19.5/)
    else if(vcpid == 21 .or. vcpid == 121 .or. vcpid == 221) then
-     nelv=18_i_kind
+     !SIMPLIFIED VCP 221 - the actual VCP has 2 scans at each level (18 total tilts).
+     nelv=9_i_kind
      allocate(tilts(nelv))
-     tilts(1:nelv)=(/ real(r_kind) :: 0.5,0.5,1.5,1.5,2.4,2.4,3.4,3.4,4.3,4.3,6.0,6.0,9.9,9.9,14.6,&
-                                          14.6,19.5,19.5/)
+     tilts(1:nelv)=(/ real(r_kind) :: 0.5,1.5,2.4,3.4,4.3,6.0,9.9,14.6,19.5/)
    else if(vcpid == 999 ) then ! my vcp
      nelv=25_i_kind
      allocate(tilts(nelv))
@@ -278,17 +239,8 @@ program drwsim
   gatespc=gatespc*ithin
   azmspc=360/azimuths
   numgates=int(maxobrange/gatespc) !calculate num gates based on namelist settings.
-  if(datatype=='NETCDF') then
-     nesteddata3d=trim(datapath) // trim(nesteddata3d) !concat strings
-     nesteddata2d=trim(datapath) // trim(nesteddata2d)
-     nesteddatadbz=trim(datapath) // trim(nesteddatadbz)
-     ak_bk=trim(datapath) // trim(ak_bk)
-     nestedgrid =trim(datapath) // trim(nestedgrid)
-   end if
-  if(datatype=='NEMSIO') then
-!filename='/scratch4/NCEPDEV/meso/save/Donald.E.Lippi/PhD-globalOSSE/obssim/fortran/src/gfs.t00z.atmf012.nemsio' 
-     filename=trim(datapath) // trim(filename)
-  end if
+  filename=trim(datapath) // trim(filename)
+
   if(diagprint .and. diagverbose >= 1) then
      write(*,*) "----NC FILE SPECS--------"
      write(*,*) "nlat",nlat
@@ -313,16 +265,7 @@ program drwsim
      write(*,*) "maxtilt     ",maxtilt
      write(*,*) "mindbz      ",mindbz
      write(*,*) "datapath:   ",datapath
-     if(datatype=='NETCDF') then
-        write(*,*) "nesteddata3d: ",nesteddata3d
-        write(*,*) "nesteddata2d: ",nesteddata2d
-        write(*,*) "nesteddatadbz:",nesteddatadbz
-        write(*,*) "ak_bk:        ",ak_bk
-        write(*,*) "nestedgrid:   ",nestedgrid
-     end if
-     if(datatype=='NEMSIO') then
-        write(*,*) "nemsio file:  ",filename
-     end if
+     write(*,*) "nemsio file:  ",filename
   end if
   if(modulo(360,azimuths) /= 0) stop "ERROR: !!! AZIMUTHS IN NAMELIST IS NOT A FACTOR OF 360-DEG. !!!"
 
@@ -355,9 +298,10 @@ program drwsim
   close(40)
   write(*,*) "Done: Reading Global Radar List"
 
-  write(*,*) 'Open and Read NEMSIO files'
+
 !------ OPEN NEMSIO FILE FOR READING -----------------------
   if(datatype=='NEMSIO') then
+     write(*,*) 'Open and Read NEMSIO files'
      allocate(work(nlon,nlat))
      work    = zero
 
@@ -386,15 +330,59 @@ program drwsim
      ! ak bk --> interface pressure/height calculation
      write(*,*) 'Reading ak bk'
      allocate(nems_vcoord(nsig+1,3,2),presi(nlon,nlat,nsig+1),hgti(nlon,nlat,nsig),ak(nsig+1),bk(nsig+1))
+     allocate(pges(nlon,nlat,nsig,1))
+     allocate(zges(nlon,nlat,nsig,1))
+     pges = 0.0_r_kind ! initialize
+     zges = 0.0_r_kind ! initialize
      call nemsio_getfilehead(gfile,iret=iret,vcoord=nems_vcoord)
      if ( idvc == 2 ) then      ! hybrid coordinate
         ak = 0.01_r_kind*nems_vcoord(1:nsig+1,1,1) ! convert to mb
         bk = nems_vcoord(1:nsig+1,2,1)
      endif
+
+     ! This is how you compute the pressure and geometric height at interfaces (not with delz/delp)
      do isig=1,nsig+1
         presi(:,:,isig)=ak(isig)+bk(isig)*ges_ps ! pressure at interfaces
-!        hgti(:,:,isig)=ak(isig)+bk(isig)*ges_z   ! geometric height at interfaces
+        hgti(:,:,isig)=ak(isig)+bk(isig)*ges_z   ! geometric height at interfaces
      enddo
+     test_delzdelp_vs_akbk=.false.
+     if(.not. test_delzdelp_vs_akbk) zges(:,:,:,1)=hgti(:,:,:) ! save as correct variable name 
+     !###########   TEST DELZ/DELP vs AKBK #################################
+     if(test_delzdelp_vs_akbk) then
+        allocate( delp(nlon,nlat,nsig,ntime))
+        allocate( delz(nlon,nlat,nsig,ntime))
+        delp(:,:,:,:)=0.0_r_kind ! initialize
+        delz(:,:,:,:)=0.0_r_kind ! initialize
+        itime=1
+        do isig=1,nsig
+           ! dpres
+           call nemsio_readrecv(gfile,'dpres','mid layer',isig,dp1d,iret=iret)
+           delp(:,:,isig,itime)=reshape(dp1d(:),(/size(work,1),size(work,2)/))
+           ! delz
+           call nemsio_readrecv(gfile,'delz','mid layer',isig,dz1d,iret=iret)
+           delz(:,:,isig,itime)=reshape(dz1d(:),(/size(work,1),size(work,2)/))
+        enddo
+        do isig=1,nsig
+           if(isig==1) then
+              zges(:,:,isig,1)=                       delz(:,:,isig,itime)
+           else
+              zges(:,:,isig,1)=zges(:,:,isig-1,itime)+delz(:,:,isig,itime)
+           end if
+        enddo
+        do isig=nsig,1,-1
+           if(isig==nsig) then
+              pges(:,:,isig,1)=                       delp(:,:,isig,itime)
+           else
+              pges(:,:,isig,1)=pges(:,:,isig+1,itime)+delp(:,:,isig,itime)
+           endif
+        end do
+        print *, "pges ",pges(2242,506,1,1) ! print at the location of KGRK
+        print *, "zges ",zges(2242,506,1,1)
+        print *, "presi",presi(2242,506,1)
+        print *, "hgti",hgti(2242,506,1)
+        stop 'End of checking delzdelp vs akbk'
+     end if ! end test delzdelp vs akbk
+     !###################################################################
 
      ! rlats rlons
      write(*,*) 'Reading lat lon'
@@ -406,7 +394,6 @@ program drwsim
      do ilat=1,nlat
         rlats(ilat)=lats(ilat*nlon-(nlon-1))*deg2rad 
      end do
-
      !lats indicies 1-3072 are all the same and are 89.9
      !lons indicies 1-3072 are increase from 0 to 359.88
 
@@ -419,14 +406,12 @@ program drwsim
      allocate(ges_v(nlon,nlat,nsig,ntime))
      allocate(ges_w(nlon,nlat,nsig,ntime))
      allocate(ges_dbz(nlon,nlat,nsig,ntime))
-     allocate( delz(nlon,nlat,nsig,ntime))
         ges_u(:,:,:,:)=0.0_r_kind ! initialize
         ges_v(:,:,:,:)=0.0_r_kind ! initialize
         ges_w(:,:,:,:)=0.0_r_kind ! initialize
         ges_dbz(:,:,:,:)=0.0_r_kind ! initialize
-        delz(:,:,:,:)=0.0_r_kind ! initialize
 
-     write(*,*) 'Reading u,v,w,delz level by level'
+     write(*,*) 'Reading u,v,w level by level'
      do isig=1,nsig
         write(*,*) 'level = ',isig
 
@@ -442,66 +427,15 @@ program drwsim
         call nemsio_readrecv(gfile,'ugrd','mid layer',isig,w1d,iret=iret)
         ges_w(:,:,isig,itime)=reshape(w1d(:),(/size(work,1),size(work,2)/))
 
-        ! delz
-        call nemsio_readrecv(gfile,'delz','mid layer',isig,dz1d,iret=iret)
-        delz(:,:,isig,itime)=reshape(dz1d(:),(/size(work,1),size(work,2)/))
-        ! dpres
         ! dbz
 
 
      end do
 
-     !!glat/glon
-     !allocate(glat1d(nlon*nlat),glon1d(nlon*nlat),glat(nlon,nlat),glon(nlon,nlat))
-     !call nemsio_getfilehead(gfile,iret=iret,lat=glat1d,lon=glon1d)
-     !glat(:,:)=reshape(glat1d(:),(/size(work,1),size(work,2)/))
-     !glon(:,:)=reshape(glon1d(:),(/size(work,1),size(work,2)/))
-      
      print *, idate,nfhour
 
   write(*,*) 'Done: Reading NEMSIO files'
   end if ! NEMSIO READ
-
-
-
-
-
-        !height(:,:,isig,itime)    =                             delz(:,:,isig,ntime)
-        !-- subtract the model terrain height from model background.
-        !height(:,:,isig,itime)    =    height(:,:,isig,itime) - ges_sfcz(:,:)   !geometric
-        !geop_hgtl(:,:,isig,itime) = geop_hgtl(:,:,isig,itime) - ges_sfcgpm(:,:) !geopotential
-!  geop_hgtl=height*grav
-!
-!  if(diagprint .and. diagverbose >= 2) then
-!     write(*,*)"time       ", maxval(       time(      :)), minval(       time(      :)) 
-!     write(*,*)"pfull      ", maxval(      pfull(    :  )), minval(      pfull(    :  )) 
-!     write(*,*)"ges_u      ", maxval(      ges_u(:,:,:,:)), minval(      ges_u(:,:,:,:)) 
-!     write(*,*)"ges_v      ", maxval(      ges_v(:,:,:,:)), minval(      ges_v(:,:,:,:))
-!     write(*,*)"ges_w      ", maxval(      ges_w(:,:,:,:)), minval(      ges_w(:,:,:,:)) 
-!     write(*,*)"height     ", maxval(     height(:,:,:,:)), minval(     height(:,:,:,:))
-!     write(*,*)"ges_prsi   ", maxval(   ges_prsi(:,:,:,:)), minval(   ges_prsi(:,:,:,:)) 
-!     write(*,*)"glon       ", maxval(       glon(:,:    )), minval(       glon(:,:    ))
-!     write(*,*)"glat       ", maxval(       glat(:,:    )), minval(       glat(:,:    ))
-!     write(*,*)"ges_sfcgpm ", maxval( ges_sfcgpm(:,:    )), minval( ges_sfcgpm(:,:    ))
-!     write(*,*)"ges_sfcz   ", maxval(   ges_sfcz(:,:    )), minval(   ges_sfcz(:,:    ))
-!     write(*,*)"ges_psfc   ", maxval(   ges_psfc(:,:,  :)), minval(   ges_psfc(:,:,  :)) 
-!     if(use_dbz) write(*,*)"ges_dbz  ", maxval(  ges_dbz(:,:,:,:)), minval(  ges_dbz(:,:,:,:)) 
-!  end if
-!
-!  !--Make sure we're not missing fields.
-!  if(maxval(       time(      :)) == 0 .and. minval(       time(      :)) == 0) STOP 'MISSING TIME' 
-!  if(maxval(      pfull(    :  )) == 0 .and. minval(      pfull(    :  )) == 0) STOP 'MISSING PCOORD' 
-!  if(maxval(      ges_u(:,:,:,:)) == 0 .and. minval(      ges_u(:,:,:,:)) == 0) STOP 'MISSING U'  
-!  if(maxval(      ges_v(:,:,:,:)) == 0 .and. minval(      ges_v(:,:,:,:)) == 0) STOP 'MISSING V' 
-!  if(maxval(      ges_w(:,:,:,:)) == 0 .and. minval(      ges_w(:,:,:,:)) == 0) STOP 'MISSING W' 
-!  if(maxval(     height(:,:,:,:)) == 0 .and. minval(     height(:,:,:,:)) == 0) STOP 'MISSING HEIGHT'
-!  if(maxval(   ges_prsi(:,:,:,:)) == 0 .and. minval(   ges_prsi(:,:,:,:)) == 0) STOP 'MISSING PRESI' 
-!  if(maxval(       glon(:,:    )) == 0 .and. minval(       glon(:,:    )) == 0) STOP 'MISSING GLON' 
-!  if(maxval(       glat(:,:    )) == 0 .and. minval(       glat(:,:    )) == 0) STOP 'MISSING GLAT' 
-!  if(maxval( ges_sfcgpm(:,:    )) == 0 .and. minval( ges_sfcgpm(:,:    )) == 0) STOP 'MISSING HGTSFC'
-!  if(maxval(   ges_sfcz(:,:    )) == 0 .and. minval(   ges_sfcz(:,:    )) == 0) STOP 'MISSING HGTSFC'
-!  if(maxval(   ges_psfc(:,:,  :)) == 0 .and. minval(   ges_psfc(:,:,  :)) == 0) STOP 'MISSING PRESsfc'
-!  if(maxval(    ges_dbz(:,:,:,:)) == 0 .and. minval(    ges_dbz(:,:,:,:)) == 0 .and. use_dbz) STOP 'MISSING DBZ' 
 
   !set up information needed to interpolate model to observation
   !*********************************
@@ -522,7 +456,11 @@ program drwsim
   end if
 
   ndata=izero
+  nradars=izero
 
+  !--Call Timer
+  call date_and_time(values=time_array_0)
+  start_time = time_array_0(5)*3600 + time_array_0(6)*60 + time_array_0(7) + time_array_0(8)*0.001
   write(*,*) 'STARTING RADAR WIND SIMULATION:'
 
   loopOVERtime: do itime=1,ntime
@@ -533,7 +471,7 @@ program drwsim
         drwpol=-999.0_r_kind !Initialize/Reset the drw polar field
         radar_location=.true. ! logical to only compute radar x,y once later in loop.
         this_staid=adjustl(trim(dfid(irid)))
-        ifKGRK: if(this_staid==trim(adjustl(staid))) then
+        ifKGRK: if(this_staid==trim(adjustl(staid)) .or. trim(adjustl(staid))=='all') then
            stahgt=dfheight(irid)
            rlon0=dflon(irid)*deg2rad
            rlat0=dflat(irid)*deg2rad
@@ -541,7 +479,7 @@ program drwsim
            slat0=sin(rlat0)
            loopOVERtilts:    do itilt=1,nelv
               if(tilts(itilt) > maxtilt .or. tilts(itilt) < mintilt) then
-                 write(*,*) "oops... itilt:",tilts(itilt)," is out of bounds max/mintilt:",maxtilt,mintilt," cycling"
+                 !write(*,*) "oops... itilt:",tilts(itilt)," is out of bounds max/mintilt:",maxtilt,mintilt," cycling"
                  cycle
               end if
               bufrisopen=.false.   !Initialize bufr file as closed.
@@ -550,20 +488,20 @@ program drwsim
               celev0=cos(thistiltr)
               selev0=sin(thistiltr)
               loopOVERazimuths: do iazm=azmspc,360,azmspc
-                 1000 format(a5,1x,i4,i2.2,i2.2,i2.2,&
-                          3x,a6,1x,a4,&
-                          !3x,a5,1x,f4.1,a1,f4.1,&
-                          3x,a5,1x,i2,a2,i2,1x,a1,f4.1,a1,f4.1,a1,&
-                          3x,a4,1x,i3,a4,&
-                          3x,a4,1x,i3,&
-                          3x,a6,1x,i2,a1,i5,a9)
-                 write(*,1000),"Date:",iadate(1),iadate(2),iadate(3),iadate(4),&
-                               "Radar:",adjustl(trim(dfid(irid))),&
-                               !"Tilt:",tilts(itilt),"/",tilts(nelv),&
-                               "Tilt:",itilt,"of",nelv,"(",tilts(itilt),"/",tilts(nelv),")",&
-                               "Azm:",iazm,"/360",&
-                               "VCP:",vcpid,&
-                               "ObRes:",azmspc,"x",gatespc,"[deg x m]"
+                 !1000 format(a5,1x,i4,i2.2,i2.2,i2.2,&
+                 !         3x,a6,1x,a4,&
+                 !         !3x,a5,1x,f4.1,a1,f4.1,&
+                 !         3x,a5,1x,i2,a2,i2,1x,a1,f4.1,a1,f4.1,a1,&
+                 !         3x,a4,1x,i3,a4,&
+                 !         3x,a4,1x,i3,&
+                 !         3x,a6,1x,i2,a1,i5,a9)
+                 !write(*,1000),"Date:",iadate(1),iadate(2),iadate(3),iadate(4),&
+                 !              "Radar:",adjustl(trim(dfid(irid))),&
+                 !              !"Tilt:",tilts(itilt),"/",tilts(nelv),&
+                 !              "Tilt:",itilt,"of",nelv,"(",tilts(itilt),"/",tilts(nelv),")",&
+                 !              "Azm:",iazm,"/360",&
+                 !              "VCP:",vcpid,&
+                 !              "ObRes:",azmspc,"x",gatespc,"[deg x m]"
                  thisazimuth=90.0_r_kind-float(iazm) ! 90-azm to be consistent with l2rwbufr
                  if(thisazimuth>=r360) thisazimuth=thisazimuth-r360
                  if(thisazimuth<zero) thisazimuth=thisazimuth+r360
@@ -598,7 +536,7 @@ program drwsim
 
                        !--Determine the x,y (grid relative location) of the radar location.
                        !--Only need to do this once per radar.
-                       radar_location=.false. ! do I even need this?
+                       radar_location=.false.
                        if(radar_location) then
                           radar_lat=dflat(irid) !lat/lons stored as deg.
                           radar_lon=dflon(irid)
@@ -608,13 +546,12 @@ program drwsim
                           radar_y=radar_lat
                           call grdcrd1(radar_y,rlats*rad2deg,nlat,-1) !lats are in descending order
                           call grdcrd1(radar_x,rlons*rad2deg,nlon, 1)
-                          !call tintrp2a_single_level(ges_z,zsges,radar_x,radar_y)
-                          radar_xm1=int(radar_x)
-                          radar_xp1=int(radar_x)+2
-                          radar_ym1=int(radar_y)
-                          radar_yp1=int(radar_y)+2
-                          call tintrp2a_single_level_sliced(ges_z(radar_xm1:radar_xp1,radar_ym1:radar_yp1),&
-                                                      zsges,radar_x-int(radar_x)+2,radar_y-int(radar_y)+2)
+                          radar_xa=int(radar_x)
+                          radar_xb=int(radar_x)+2
+                          radar_ya=int(radar_y)
+                          radar_yb=int(radar_y)+2
+                          !call tintrp2a_single_level_sliced(ges_z(radar_xm1:radar_xp1,radar_ym1:radar_yp1),&
+                          !                            zsges,radar_x-int(radar_x)+2,radar_y-int(radar_y)+2)
                           radar_location=.false. ! turn off get radar x/y until next radar is processed.
                        end if
 
@@ -634,28 +571,31 @@ program drwsim
                        dlatm1=int(dlat)
                        dlatp1=int(dlat)+2
                        zsges=0.0_r_kind
-                       call tintrp2a_single_level_sliced(ges_z(dlonm1:dlonp1,dlatm1:dlatp1),zsges,dlon-int(dlon)+2,dlat-int(dlat)+2)
+                       call tintrp2a_single_level_sliced(ges_z(dlonm1:dlonp1,dlatm1:dlatp1),&
+                                                   zsges,dlon-int(dlon)+2,dlat-int(dlat)+2)
                        !--Remove terrain height from ob absolute height and reject if below ground.
                        if(zsges>=dpres) then
-                         write(*,*) 'zsges =',zsges,'is greater than dpres',dpres,'. Rejecting ob.'
+                         !write(*,*) 'zsges =',zsges,'is greater than dpres',dpres,'. Rejecting ob.'
                          cycle
                        end if
                        dpres=dpres-zsges
 
-                       !--Compute the geometric height from delz.
+                       !--Compute the geometric height from delz. (NOT THE
+                       !CORRECT METHOD... USE AKBK FOR THIS!!! CHECK THE
+                       !BEGGINING OF THE CODE FOR CORRECT METHOD!
                        !--Only need to do this once per run of this entire code.
-                       if(geometric_height_switch) then
-                          geometric_height_switch=.false. ! turn off after first use.
-                          allocate(zges(nlon,nlat,nsig,1))
-                          zges = 0.0_r_kind ! initialize
-                          do isig=1,nsig
-                             if(isig==1) then
-                                zges(:,:,isig,1)=                       delz(:,:,isig,itime)
-                             else
-                                zges(:,:,isig,1)=zges(:,:,isig-1,itime)+delz(:,:,isig,itime)
-                             end if
-                          enddo
-                       end if
+                       !if(geometric_height_switch) then
+                       !   geometric_height_switch=.false. ! turn off after first use.
+                       !   !allocate(zges(nlon,nlat,nsig,1))
+                       !   zges = 0.0_r_kind ! initialize
+                       !   do isig=1,nsig
+                       !      if(isig==1) then
+                       !         zges(:,:,isig,1)=                       delz(:,:,isig,itime)
+                       !      else
+                       !         zges(:,:,isig,1)=zges(:,:,isig-1,itime)+delz(:,:,isig,itime)
+                       !      end if
+                       !   enddo
+                       !end if
 
                        zob=dpres
 
@@ -741,7 +681,9 @@ program drwsim
            hdr(10)= 00               !MINU - MINUTE
            hdr(11)= 1                !QCRW - QUALITY MARK FOR WINDS ALONG RADIAL LINE
           !hdr(12)- azm loop below.
-           bufrfilename=trim(cdate)//'_fv3.t'//trim(hh)//'z.drw.bufr'
+           !/gpfs/hps/nco/ops/com/rap/para/rap.20180504 or
+           !/NCEPPROD/hpssprod/runhistory/rh2018/201805/20180503
+           bufrfilename=trim(cdate)//'_fv3.t'//trim(hh)//'z.drw.bufr'  !rap.t00z.nexrad.tm00.bufr_d
            bufrtilt: do itiltbufr=1,nelv
               intdate=iadate(1)*1000000 + iadate(2)*10000 + iadate(3)*100 + iadate(4) ! int(yyyymmddhh)
               hdr(5) = tilts(itiltbufr) 
@@ -778,6 +720,7 @@ program drwsim
            bufrisopen=.false.
         end if ifKGRK
         deallocate(drwpol)
+        nradars=nradars+1
      end do loopOVERradars 
   end do loopOVERtime
 
@@ -791,6 +734,7 @@ program drwsim
   write(*,'(a14,i2.2,a1,i2.2,a1,i2.2)')"Elapsed time:   ",hrs,":",mins,":",secs
   write(*,*) "Elapsed time (s) =", total_time
   write(*,*) "end of program"
+  write(*,*) 'numradars =',nradars
   write(*,*) 'numgates =',numgates
   write(*,*) 'numelevs =',nelv
   write(*,*) 'numazims =',azimuths

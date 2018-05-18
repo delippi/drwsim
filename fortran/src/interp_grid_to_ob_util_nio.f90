@@ -160,8 +160,8 @@ subroutine tintrp3(f,gout,dxin,dyin,dzin)
 
 ! Declare local variables
 
-  integer(i_kind) m1,i,ix1,iy1,ix,ixp,iyp,n
-  integer(i_kind) iy,iz,izp,itime,itimep,j
+  integer(i_kind) i,ix1,iy1,ix,ixp,iyp,n
+  integer(i_kind) iy,iz,izp
   real(r_kind) delx,delyp,delxp
   real(r_kind) dely,delz,delzp
   
@@ -276,7 +276,7 @@ subroutine tintrp2a(fin,gout,dxin,dyin,nlevs)
 ! Declare local variables
   real(r_kind),dimension(nlon,nlat,nlevs) :: f
   integer(i_kind) i,ix1,iy1,ix,ixp,iyp,n
-  integer(i_kind) iy,itime,itimep,j,k
+  integer(i_kind) iy,k
   real(r_kind) delx,delyp,delxp
   real(r_kind) dely
   
@@ -379,8 +379,8 @@ subroutine tintrp2a_single_level_sliced(fin,gout,dxin,dyin)
   real(r_kind),                                 intent(  out) :: gout
 
 ! Declare local variables
-  integer(i_kind) i,ix1,iy1,ix,ixp,iyp
-  integer(i_kind) iy,itime,itimep,j,k
+  integer(i_kind) ix1,iy1,ix,ixp,iyp
+  integer(i_kind) iy
   real(r_kind) delx,delyp,delxp
   real(r_kind) dely
   
@@ -469,8 +469,8 @@ subroutine tintrp2a_single_level(fin,gout,dxin,dyin)
   real(r_kind),                                 intent(  out) :: gout
 
 ! Declare local variables
-  integer(i_kind) i,ix1,iy1,ix,ixp,iyp
-  integer(i_kind) iy,itime,itimep,j,k
+  integer(i_kind) ix1,iy1,ix,ixp,iyp
+  integer(i_kind) iy
   real(r_kind) delx,delyp,delxp
   real(r_kind) dely
   
@@ -570,7 +570,7 @@ subroutine tintrp2a_single_level_notworking(fin,gout,dxin,dyin)
 
 ! Declare local variables
   integer(i_kind) i,ix1,iy1,ix,ixp,iyp,n,nlevs
-  integer(i_kind) iy,itime,itimep,j,k
+  integer(i_kind) iy,k
   real(r_kind) delx,delyp,delxp
   real(r_kind) dely
   

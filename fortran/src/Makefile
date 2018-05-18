@@ -27,11 +27,12 @@ INCnetcdf  = ${NETCDF}/include
 LIBnetcdf  = -L${NETCDF}/lib -lnetcdf
 
 
-CF	= mpif90 -f90=ifort -I $(INCsfcio) -I $(INCsigio) -I $(INCnemsio) \
+CF	= mpif90 -f90=ifort -warn unused -I $(INCsfcio) -I $(INCsigio) -I $(INCnemsio) \
 	-I $(INCnetcdf) -I $(INCw3) -O3 -traceback -convert big_endian -assume byterecl \
 	-g -fp-model source 
 
-CFFLAG	= $(CF)
+CFFLAG	= $(CF) 
+
 
 LIBS	= $(SP_LIBd) $(NEMSIO_LIB) $(BACIO_LIB4) $(SIGIO_LIB) \
           $(SFCIO_LIB) $(BUFR_LIBd) $(W3NCO_LIBd) $(W3EMC_LIBd) $(LIBnetcdf)
@@ -42,7 +43,7 @@ drwsim.x: kinds.o constants.o grdcrd.o interp_grid_to_ob_util_nio.o drwsim_nio.f
 	$(CFFLAG) kinds.o constants.o grdcrd.o interp_grid_to_ob_util_nio.o -o $(execname) drwsim_nio.f90 $(LIBS)
 
 interp_grid_to_ob_util_nio.o: kinds.o constants.o grdcrd.o interp_grid_to_ob_util_nio.f90
-	$(CF) -c interp_grid_to_ob_util_nio.f90 $(LIBS)
+	$(CF) -c interp_grid_to_ob_util_nio.f90 #$(LIBS)
 
 grdcrd.o: kinds.o constants.o grdcrd.f90
 	$(CF) -c grdcrd.f90

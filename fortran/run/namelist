@@ -6,8 +6,8 @@ iadate(3)=15,      !dd
 iadate(4)=00,      !hh (utc)
 
 ntime=1,           ! number of times in nc file
-staid='KGRK',
-ithin=20,          ! Gate thinning frequency for RW obs (must be >=1).
+staid='all',
+ithin=4,          ! Gate thinning frequency for RW obs (must be >=1).
                    ! 250-m * ithin = new gate spacing. (e.g., ithin=20 -> 5-km) 
 
 mintilt=0.5,       ! Only use tilt angles >= mintilt [degrees]
