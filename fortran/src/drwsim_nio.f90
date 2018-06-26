@@ -118,7 +118,6 @@ program drwsim
   real(r_kind),  allocatable,dimension(:,:,:  ) :: ges_prsi
   real(r_kind),  allocatable,dimension(:,:,:  ) :: ges_prsl
   real(r_kind),  allocatable,dimension(:,:,:  ) :: ges_lnprsl
-  real(r_kind),  allocatable,dimension(:,:,:  ) :: ges_lnprsi
   real(r_kind),  allocatable,dimension(:,:,:  ) :: geop_hgtl
   real(r_kind),  allocatable,dimension(:,:,:  ) :: geop_hgti
   real(r_kind),  allocatable,dimension(:,:,:,:) :: ges_t
@@ -422,7 +421,7 @@ program drwsim
      ! ak bk --> interface pressure/height calculation
      write(*,*) 'Reading ak bk'
      allocate(nems_vcoord(nsig+1,3,2))
-     allocate(ges_prsi(nlon,nlat,nsig+1),ges_lnprsi(nlon,nlat,nsig+1))
+     allocate(ges_prsi(nlon,nlat,nsig+1))
      allocate(ges_prsl(nlon,nlat,nsig),ges_lnprsl(nlon,nlat,nsig))
      allocate(ak(nsig+1),bk(nsig+1))
      allocate(geop_hgtl(nlon,nlat,nsig))
@@ -438,21 +437,20 @@ program drwsim
      ! This is how you compute the pressure at interfaces (not with delz/delp)
      do isig=1,nsig+1
         ges_prsi(:,:,isig)=ak(isig)+bk(isig)*ges_ps ! pressure at interfaces
-        ges_lnprsi(:,:,isig)=log(ges_prsi(:,:,isig)) 
      enddo
      deallocate(ak,bk)
      !Simplified method to compute ges_prsl via averaging
      do isig=1,nsig
         ges_prsl(:,:,isig)  =half*  (ges_prsi(:,:,isig) +   ges_prsi(:,:,isig+1))
-        ges_lnprsl(:,:,isig)=half*(ges_lnprsi(:,:,isig) + ges_lnprsi(:,:,isig+1))
+        ges_lnprsl(:,:,isig)=log(ges_prsl(:,:,isig)) 
      enddo
      
      !-Compute compressibility factor (Picard et al 2008) and geopotential
      !heights at mid layer: from guess_grids.f90 line 1328 
      write(6,*) "Computing geopotential height at mid layer: starting"
      rdog = rd/grav
-     do j=1,nlon
-        do i=1,nlat
+     do i=1,nlon     !LIPPI Flipped the order of nlon/nlat
+        do j=1,nlat
            k=1
            fact   = one + fv * ges_q(i,j,k,1)
            pw     = eps + ges_q(i,j,k,1)*(one - eps)
@@ -649,6 +647,7 @@ program drwsim
                        ! ln(pressure at mid layer): ges_lnprsl(nlon,nlat,nsig) => prsltmp(nsig)
                        call tintrp2a_sliced(ges_lnprsl(dlonm1:dlonp1,dlatm1:dlatp1,:),&
                                                    prsltmp(:),dlon-int(dlon)+2,dlat-int(dlat)+2,nsig)
+
                        ! geopotential height at mid layers: geop_hgtl(nlon,nlat,nsig) => hges(nsig)
                        call tintrp2a_sliced(geop_hgtl(dlonm1:dlonp1,dlatm1:dlatp1,:),&
                                                    hges(:),dlon-int(dlon)+2,dlat-int(dlat)+2,nsig)
@@ -659,20 +658,22 @@ program drwsim
                          cycle
                        end if
                        dpres=dpres-zsges
-                       write(6,*) "dpres=",dpres
 
 !**********************************CONVERT GEOP HEIGHT TO GEOM HEIGHT****!
-                         sin2  = sin(thislat)*sin(thislat)
-                         termg = grav_equator * ((one+somigliana*sin2)/sqrt(one-eccentricity*eccentricity*sin2))
-                         termr = semi_major_axis /(one + flattening + grav_ratio - two*flattening*sin2)
-                         termrg = (termg/grav)*termr
-                         do k=1,nsig
-                            zges(k) = (termr*hges(k)) / (termrg-hges(k))  ! eq (23)
-                         end do
-                    !    Convert observation height (in dpres) from meters to grid relative units.
-                    !    Save the observation height in zob for later use.
-                         zob = dpres
-                         call grdcrd1(dpres,zges,nsig,1) ! get grid coordinates of dpres from zges
+                       sin2  = sin(thislat)*sin(thislat)
+                       termg = grav_equator * ((one+somigliana*sin2)/sqrt(one-eccentricity*eccentricity*sin2))
+                       termr = semi_major_axis /(one + flattening + grav_ratio - two*flattening*sin2)
+                       termrg = (termg/grav)*termr
+                       do k=1,nsig
+                          zges(k) = (termr*hges(k)) / (termrg-hges(k))  ! eq (23)
+                       end do
+                    !  Convert observation height (in dpres) from meters to grid relative units.
+                    !  Save the observation height in zob for later use.
+                       zob = dpres
+                       call grdcrd1(dpres,zges,nsig,1) ! get grid coordinates of dpres from zges
+                       !call grdcrd1(dpres,nsig,zges,nsig,1) ! get grid coordinates of dpres from zges
+                       !write(6,*) "debug:",sin2,termg,termr,termrg,maxval(hges),maxval(zges)
+                       write(6,*) "dpres1/dpres2=",zob,dpres!,zges
 !**********************************CONVERT GEOP HEIGHT TO GEOM HEIGHT****!
 
                        !--Interpolate guess dbz to observation location - cycle if below threshold.
