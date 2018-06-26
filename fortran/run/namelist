@@ -1,12 +1,12 @@
 &drw
 datatype='NEMSIO', !NEMSIO or NETCDF
-iadate(1)=2017,    !yyyy
-iadate(2)=10,      !mm
-iadate(3)=15,      !dd
-iadate(4)=00,      !hh (utc)
+!iadate(1)=2018,    !yyyy
+!iadate(2)=05,      !mm
+!iadate(3)=03,      !dd
+!iadate(4)=00,      !hh (utc)
 
 ntime=1,           ! number of times in nc file
-staid='all',
+staid='KFDR',
 ithin=4,          ! Gate thinning frequency for RW obs (must be >=1).
                    ! 250-m * ithin = new gate spacing. (e.g., ithin=20 -> 5-km) 
 
@@ -26,14 +26,26 @@ radarcsv='radar_sim_dev.csv',
 
 !from: WSR-88D Volume Coverage Pattern (VCP) Improvement Initiatives
 !vcpid=11,12,21,31,32,35,80,90,121,211,212,215,221,999
-
 !vcpid=215,
 !vcpid=211,
-vcpid=212,
+!vcpid=212,
 !vcpid=221,
 !vcpid=999,
-!vcpid=998,
+vcpid=998,
 /
+
+&NIO
+datapath='/scratch4/NCEPDEV/meso/save/Donald.E.Lippi/PhD-globalOSSE/obssim/fortran/src/'
+!filename='gfs.t00z.atmf012.nemsio', !3072x1536x64
+filename='gfs.t00z.atmges.nemsio', !1536x768x64
+/
+
+
+
+
+
+
+
 
 &NC
 datapath='/scratch4/NCEPDEV/meso/noscrub/Eric.Aligo/work_FV3_nest_C768_2017101500_GFDL_MP_REFL/',
@@ -43,9 +55,4 @@ nesteddata2d='nggps2d.nest02.nc',
 nesteddatadbz='refl3D.nest02.nc',
 nestedgrid='grid_spec.nest02.nc',
 ak_bk='RESTART/fv_core.res.nest02.nc',
-/
-
-&NIO
-datapath='/scratch4/NCEPDEV/meso/save/Donald.E.Lippi/PhD-globalOSSE/obssim/fortran/src/'
-filename='gfs.t00z.atmf012.nemsio',
 /

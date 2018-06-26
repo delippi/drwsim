@@ -12,8 +12,10 @@ module interp_util
 !  integer(i_kind),parameter :: nlon=1728_i_kind	
 !  integer(i_kind),parameter :: nlat=1440_i_kind
 !  integer(i_kind),parameter :: nsig=63_i_kind  
-  integer(i_kind),parameter :: nlon=3072_i_kind
-  integer(i_kind),parameter :: nlat=1536_i_kind
+!  integer(i_kind),parameter :: nlon=3072_i_kind
+!  integer(i_kind),parameter :: nlat=1536_i_kind
+  integer(i_kind),parameter :: nlon=1536_i_kind
+  integer(i_kind),parameter :: nlat=768_i_kind
   integer(i_kind),parameter :: nsig=64_i_kind  
   !integer(i_kind),parameter :: ntime=1_i_kind  
   integer(i_kind) :: nxtilde,nytilde
@@ -327,6 +329,103 @@ subroutine tintrp2a(fin,gout,dxin,dyin,nlevs)
   return
 end subroutine tintrp2a
 
+subroutine tintrp2a_sliced(fin,gout,dxin,dyin,nlevs)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    tintrp2a
+!   prgmmr: parrish          org: np22                date: 1990-10-11
+!
+! abstract: linear time interpolate in 3 dimensions (x,y,time) over 
+!           n levs
+!
+! program history log:
+!   1990-10-11  parrish
+!   1998-04-05  weiyu yang
+!   1999-08-24  derber, j., treadon, r., yang, w., first frozen mpp version
+!   2003-12-22  kleist, modified to perform 2-d interpolation over a
+!                      specified number of vertical levels
+!   2004-05-18  kleist, documentation
+!   2005-02-02  treadon - use ione from constants
+!   2006-04-03  derber  - optimize
+!   2008-04-03  safford - rm unused vars
+!   2009-01-23  todling - dim on gridtime is nflds
+! 
+!   input argument list:
+!     f        - input interpolator
+!     dx,dy    - input x,y,z-coords of interpolation points (grid units)
+!     obstime  - time to interpolate to
+!     gridtime - grid guess times to interpolate from
+!     n        - number of interpolatees
+!     nlevs    - number of vertical levels over which to perform the 
+!                2-d intrpolation 
+!     mype     - mpi task id
+!     nflds    - number of guess times available to interpolate from
+!
+!   output argument list:
+!     g        - output interpolatees
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$
+  use kinds, only: r_kind,i_kind
+ ! use gridmod, only: istart,jstart,nlon,nlat,lon1,lon2,lat2
+  use constants, only: zero,one
+  implicit none
+
+! Declare passed variables
+  integer(i_kind)                              ,intent(in   ) :: nlevs
+  real(r_kind),dimension(3,3,nlevs,1),intent(in   ) :: fin
+  real(r_kind),                                 intent(in   ) :: dxin,dyin
+  real(r_kind),dimension(nlevs)         ,intent(  out) :: gout
+
+! Declare local variables
+  real(r_kind),dimension(3,3,nlevs) :: f
+  integer(i_kind) i,ix1,iy1,ix,ixp,iyp,n
+  integer(i_kind) iy,k
+  real(r_kind) delx,delyp,delxp
+  real(r_kind) dely
+  
+  real(r_kind),dimension(1) :: dx,dy
+  real(r_kind),dimension(nlevs,1) :: g  
+  f=fin(:,:,:,1)
+  n=1
+  dx(1)=dxin
+  dy(1)=dyin
+  g=zero  
+  
+  
+
+  do i=1,n
+     ix1=int(dx(i))
+     iy1=int(dy(i))
+     ix1=max(1,min(ix1,3)) !nlat))  
+     delx=dx(i)-float(ix1)
+     dely=dy(i)-float(iy1)
+     delx=max(zero,min(delx,one))
+     ix=ix1
+     iy=iy1
+     ixp=ix+1; iyp=iy+1
+     delxp=one-delx; delyp=one-dely
+     if(ix1==nlon) then !nlat) then
+        ixp=ix
+     end if
+     
+     delxp=one-delx; delyp=one-dely
+     do k=1,nlevs
+        g(k,i)=(f(ix,iy,k)*delxp*delyp+f(ixp,iy,k)*delx*delyp &
+              +  f(ix,iyp,k)*delxp*dely+f(ixp,iyp,k)*delx*dely) !No time interpolation done so the second half of this has been removed from the original routine
+
+ 
+     end do ! end loop over vertical levs
+  end do ! end loop over number of locations
+  
+  gout=g(:,1)  !carley add since we are only interested in 1 interpolatee (n)
+  
+
+  return
+end subroutine tintrp2a_sliced
 
 subroutine tintrp2a_single_level_sliced(fin,gout,dxin,dyin)
 !$$$  subprogram documentation block

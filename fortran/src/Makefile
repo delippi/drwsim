@@ -27,7 +27,8 @@ INCnetcdf  = ${NETCDF}/include
 LIBnetcdf  = -L${NETCDF}/lib -lnetcdf
 
 
-CF	= mpif90 -f90=ifort -warn unused -I $(INCsfcio) -I $(INCsigio) -I $(INCnemsio) \
+#CF	= mpif90 -f90=ifort -warn unused -I $(INCsfcio) -I $(INCsigio) -I $(INCnemsio) 
+CF	= mpif90 -f90=ifort              -I $(INCsfcio) -I $(INCsigio) -I $(INCnemsio) \
 	-I $(INCnetcdf) -I $(INCw3) -O3 -traceback -convert big_endian -assume byterecl \
 	-g -fp-model source 
 
