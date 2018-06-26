@@ -313,8 +313,7 @@ program drwsim
 
 !------ OPEN GLOBAL RADAR LIST ---------------------------
   write(*,*) "Reading Global Radar List"
-  !numradars=155
-  numradars=18
+  numradars=155
   allocate(dfid(numradars),dflat(numradars),dflon(numradars),dfheight(numradars))
   open(40,file=trim(radarcsv))
   read(40,'(a2,1x,a3,1x,a3,1x,a6)') cdummy !read 1st line which is just a header.
