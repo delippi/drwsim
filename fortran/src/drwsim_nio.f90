@@ -141,6 +141,7 @@ program drwsim
   real(r_kind),              dimension(nlon*nlat) :: t1d
   real(r_kind),              dimension(nlon*nlat) :: q1d
   real(r_kind) :: dlonm1,dlonp1,dlatm1,dlatp1,radar_xa,radar_ya,radar_xb,radar_yb
+  integer(i_kind) :: bufrcount
 !  logical :: geometric_height_switch
   logical :: test_delzdelp_vs_akbk 
 
@@ -312,7 +313,8 @@ program drwsim
 
 !------ OPEN GLOBAL RADAR LIST ---------------------------
   write(*,*) "Reading Global Radar List"
-  numradars=155
+  !numradars=155
+  numradars=18
   allocate(dfid(numradars),dflat(numradars),dflon(numradars),dfheight(numradars))
   open(40,file=trim(radarcsv))
   read(40,'(a2,1x,a3,1x,a3,1x,a6)') cdummy !read 1st line which is just a header.
@@ -530,6 +532,7 @@ program drwsim
   start_time = time_array_0(5)*3600 + time_array_0(6)*60 + time_array_0(7) + time_array_0(8)*0.001
   write(*,*) 'STARTING RADAR WIND SIMULATION:'
 
+  bufrcount=0
   loopOVERtime: do itime=1,ntime
      !geometric_height_switch=.true.
      if(itime > 1) call newdate(iadate,1,iadate) ! don't increment the first time.
@@ -654,7 +657,7 @@ program drwsim
 
                        !--Remove terrain height from ob absolute height and reject if below ground.
                        if(zsges>=dpres) then
-                         write(*,*) 'zsges =',zsges,'is greater than dpres',dpres,'. Rejecting ob.'
+                         !write(*,*) 'zsges =',zsges,'is greater than dpres',dpres,'. Rejecting ob.'
                          cycle
                        end if
                        dpres=dpres-zsges
@@ -673,7 +676,7 @@ program drwsim
                        call grdcrd1(dpres,zges,nsig,1) ! get grid coordinates of dpres from zges
                        !call grdcrd1(dpres,nsig,zges,nsig,1) ! get grid coordinates of dpres from zges
                        !write(6,*) "debug:",sin2,termg,termr,termrg,maxval(hges),maxval(zges)
-                       write(6,*) "dpres1/dpres2=",zob,dpres!,zges
+                       !write(6,*) "dpres1/dpres2=",zob,dpres!,zges
 !**********************************CONVERT GEOP HEIGHT TO GEOM HEIGHT****!
 
                        !--Interpolate guess dbz to observation location - cycle if below threshold.
@@ -746,15 +749,24 @@ program drwsim
            bufrtilt: do itiltbufr=1,nelv
               intdate=iadate(1)*1000000 + iadate(2)*10000 + iadate(3)*100 + iadate(4) ! int(yyyymmddhh)
               hdr(5) = tilts(itiltbufr) 
-              if(.not.bufrisopen) then !open a new message for each tilt 
+              if(.not.bufrisopen) then !open a new message for each station ID 
                  write(6,*) "intdate",intdate
                  write(6,*) "cdate",cdate
-                 bufrfilename=trim(cdate)//'_fv3.t'//trim(hh)//'z_'//trim(adjustl(chdr))//'_drw.bufr'
+                 !bufrfilename=trim(cdate)//'_fv3.t'//trim(hh)//'z_'//trim(adjustl(chdr))//'_drw.bufr'
+                 bufrfilename=trim(cdate)//'_fv3.t'//trim(hh)//'z_drw.bufr'
                  write(6,*) "bufr file name is:",bufrfilename
-                 open(unit=10,file=trim(bufrfilename),status='unknown',action='write',form='unformatted')
                  open(unit=11,file='l2rwbufr.table',status='old',action='read',form='formatted')
-                 call openbf(10,'OUT',11)
+
+                 if(bufrcount == 0) then
+                    open(unit=10,file=trim(bufrfilename),status='unknown',action='write',form='unformatted')
+                    call openbf(10,'OUT',11)
+                 else ! APPEND MESSAGES AFTER THE FIRST IS WRITTEN
+                    open(unit=10,file=trim(bufrfilename),status='old',    action='write',form='unformatted')
+                    call openbf(10,'APN',11)
+                 endif
+
                  bufrisopen=.true.
+                 bufrcount=bufrcount+1
               end if
               call openmb(10,trim(subset),intdate)
               bufrazm: do iazmbufr=360/azimuths,360,360/azimuths
