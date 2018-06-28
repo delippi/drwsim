@@ -32,6 +32,7 @@ program drwsim
 
 !--General declarations
   integer(i_kind) :: iret
+  integer(i_kind) :: io
   integer(i_kind),dimension(4) :: iadate
   integer(i_kind),dimension(4) :: intdate
   character(4) :: yyyy
@@ -59,7 +60,7 @@ program drwsim
                   radar_x,radar_y,radar_lon,radar_lat
   !real(r_kind),allocatable :: delz(:,:),height(:,:),delp(:,:)
   real(r_kind),allocatable :: drwpol(:,:,:) !tilt,azm,gate
-  integer(i_kind) :: irid,itilt,iazm,igate,itime,iazm90,isig
+  integer(i_kind) :: irid,itilt,iazm,igate,itime,isig
 
   character(4) this_staid
   logical   :: diagprint
@@ -91,8 +92,6 @@ program drwsim
   real(r_kind),allocatable  ::     ges_u(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::     ges_v(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::     ges_w(:,:,:,:) ! (nlon,nlat,nsig,ntime)
-  real(r_kind),allocatable  ::      delz(:,:,:,:) ! (nlon,nlat,nsig,ntime)
-  real(r_kind),allocatable  ::      delp(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   real(r_kind),allocatable  ::   ges_dbz(:,:,:,:) ! (nlon,nlat,nsig,ntime)
   !----------------------------------------------!
 
@@ -113,13 +112,10 @@ program drwsim
   real(r_kind),  allocatable,dimension(:,:    ) :: ges_ps
   real(r_kind),  allocatable,dimension(:      ) :: ak
   real(r_kind),  allocatable,dimension(:      ) :: bk
-  real(r_kind),  allocatable,dimension(:,:,:  ) :: presi
-  real(r_kind),  allocatable,dimension(:,:,:  ) :: hgti
   real(r_kind),  allocatable,dimension(:,:,:  ) :: ges_prsi
   real(r_kind),  allocatable,dimension(:,:,:  ) :: ges_prsl
   real(r_kind),  allocatable,dimension(:,:,:  ) :: ges_lnprsl
   real(r_kind),  allocatable,dimension(:,:,:  ) :: geop_hgtl
-  real(r_kind),  allocatable,dimension(:,:,:  ) :: geop_hgti
   real(r_kind),  allocatable,dimension(:,:,:,:) :: ges_t
   real(r_kind),  allocatable,dimension(:,:,:,:) :: ges_tv
   real(r_kind),  allocatable,dimension(:,:,:,:) :: ges_q
@@ -130,20 +126,16 @@ program drwsim
   real(r_kind),              dimension(nsig) :: hges 
   real(r_kind),              dimension(nsig) :: prsltmp 
   real(r_kind),  allocatable,dimension(:,:,:,:) :: pges
-  real(r_kind),  allocatable,dimension(:      ) :: zges1d_sliced
   real(r_kind),              dimension(nlon*nlat) :: u1d
   real(r_kind),              dimension(nlon*nlat) :: v1d
   real(r_kind),              dimension(nlon*nlat) :: w1d
   real(r_kind),              dimension(nlon*nlat) :: sz1d
   real(r_kind),              dimension(nlon*nlat) :: sp1d
-  real(r_kind),              dimension(nlon*nlat) :: dz1d
-  real(r_kind),              dimension(nlon*nlat) :: dp1d
   real(r_kind),              dimension(nlon*nlat) :: t1d
   real(r_kind),              dimension(nlon*nlat) :: q1d
   real(r_kind) :: dlonm1,dlonp1,dlatm1,dlatp1,radar_xa,radar_ya,radar_xb,radar_yb
   integer(i_kind) :: bufrcount
 !  logical :: geometric_height_switch
-  logical :: test_delzdelp_vs_akbk 
 
 
   !---------GLOBAL RADAR CSV FILE VARS---------!
@@ -196,10 +188,10 @@ program drwsim
 
   !-------------HEIGHT OF INTERFACE VARS--------------!
   real(r_kind),parameter :: thousand = 1000.0_r_kind
-  integer(i_kind) i,j,jj,ier,istatus
+  integer(i_kind) i,j
   real(r_kind) dz,rdog
   real(r_kind),dimension(nsig+1):: height
-  real(r_kind) cmpr, x_v, rl_hm, fact, pw, tmp_K, tmp_C, prs_sv, prs_a,ehn_fct, prs_v
+  real(r_kind) fact, pw, tmp_K
 
 
   namelist/drw/datatype,ntime,staid,ithin,mintilt,maxtilt,maxobrange,minobrange,&
@@ -313,14 +305,34 @@ program drwsim
 
 !------ OPEN GLOBAL RADAR LIST ---------------------------
   write(*,*) "Reading Global Radar List"
-  numradars=155
+  numradars=-1
+
+  !-Initial read to count the number of radars in the file list.
+  open(41,file=trim(radarcsv))
+  read(41,'(a2,1x,a3,1x,a3,1x,a6)') cdummy !read 1st line which is just a header.
+  do !ii=1,numradars
+     read(41,'(a12,1x,2f12.4,1x,f6.2)',iostat=io) cdummy 
+     if(io == 0) then
+       numradars=numradars+1
+     elseif(io < 0) then
+       exit !End of file
+     end if
+  end do
+  close(41)
+  write(*,*) "Number of radars = ",numradars
+
+  !-Second read to store the radar metadata
   allocate(dfid(numradars),dflat(numradars),dflon(numradars),dfheight(numradars))
   open(40,file=trim(radarcsv))
   read(40,'(a2,1x,a3,1x,a3,1x,a6)') cdummy !read 1st line which is just a header.
   do ii=1,numradars
      read(40,'(a12,1x,2f12.4,1x,f6.2)') dfid(ii),dflat(ii),dflon(ii),dfheight(ii)
      dfid(ii)=trim(dfid(ii))
-     if(diagprint .and. diagverbose >= 3) write(*,*) dfid(ii),dflat(ii),dflon(ii),dfheight(ii)
+
+     if(diagprint .and. diagverbose >= 1) then
+        1002 format(a5,1x,f7.2,1x,f7.2,1x,f7.2)
+        write(6,1002) dfid(ii),dflat(ii),dflon(ii),dfheight(ii)
+     end if
   end do
   close(40)
   write(*,*) "Done: Reading Global Radar List"
@@ -457,37 +469,17 @@ program drwsim
            pw     = eps + ges_q(i,j,k,1)*(one - eps)
            tmp_K  = ges_t(i,j,k,1) ! I believe it is already in Kelvin.
            ges_tv(i,j,k,1) = tmp_K * fact !tmp_K=ges_tv/fact 
-           tmp_C  = tmp_K - t0c
-           prs_sv = exp(psv_a*tmp_K**2 + psv_b*tmp_K + psv_c + psv_d/tmp_K)  ! eq A1.1 (Pa)
-           prs_a  = thousand * exp(half*(log(ges_prsi(i,j,k))+log(ges_prsl(i,j,k))))
-           ehn_fct = ef_alpha + ef_beta*prs_a + ef_gamma*tmp_C**2 ! enhancement factor (eq. A1.2)
-           prs_v   = ges_q(i,j,k-1,1) * prs_a / pw   ! vapor pressure (Pa)
-           rl_hm   = prs_v / prs_sv    ! relative humidity
-           x_v     = rl_hm * ehn_fct * prs_sv / prs_a     ! molar fraction of water vapor (eq. A1.3)
-           cmpr    = one - (prs_a/tmp_K) * ( cpf_a0 + cpf_a1*tmp_C + cpf_a2*tmp_C**2 &
-                      + (cpf_b0 + cpf_b1*tmp_C)*x_v + (cpf_c0 + cpf_c1*tmp_C)*x_v**2 ) &
-                      + (prs_a**2/tmp_K**2) * (cpf_d + cpf_e*x_v**2)
            h       = rdog * ges_tv(i,j,k,1)
-           dz      = h * cmpr * log(ges_prsi(i,j,k)/ges_prsl(i,j,k))
+           dz      = h * log(ges_prsi(i,j,k)/ges_prsl(i,j,k))
            height(k) = ges_z(i,j) + dz
 
-           do k=2,nsig+1
+           do k=2,nsig
               fact   = one + fv * ges_q(i,j,k-1,1)
               pw     = eps + ges_q(i,j,k-1,1)*(one - eps)
               tmp_K  = ges_t(i,j,k-1,1) ! I believe it is already in Kelvin.
               ges_tv(i,j,k-1,1) = tmp_K * fact !tmp_K=ges_tv/fact 
-              tmp_C  = tmp_K - t0c
-              prs_sv = exp(psv_a*tmp_K**2 + psv_b*tmp_K + psv_c + psv_d/tmp_K)  ! eq A1.1 (Pa)
-              prs_a  = thousand * exp(half*(log(ges_prsl(i,j,k-1))+log(ges_prsl(i,j,k))))
-              ehn_fct = ef_alpha + ef_beta*prs_a + ef_gamma*tmp_C**2 ! enhancement factor (eq. A1.2)
-              prs_v   = ges_q(i,j,k-1,1) * prs_a / pw   ! vapor pressure (Pa)
-              rl_hm   = prs_v / prs_sv    ! relative humidity
-              x_v     = rl_hm * ehn_fct * prs_sv / prs_a     ! molar fraction of water vapor (eq. A1.3)
-              cmpr    = one - (prs_a/tmp_K) * ( cpf_a0 + cpf_a1*tmp_C + cpf_a2*tmp_C**2 &
-                         + (cpf_b0 + cpf_b1*tmp_C)*x_v + (cpf_c0 + cpf_c1*tmp_C)*x_v**2 ) &
-                         + (prs_a**2/tmp_K**2) * (cpf_d + cpf_e*x_v**2)
               h       = rdog * ges_tv(i,j,k-1,1)
-              dz      = h * cmpr * log(ges_prsl(i,j,k-1)/ges_prsl(i,j,k))
+              dz      = h * log(ges_prsl(i,j,k-1)/ges_prsl(i,j,k))
               height(k) = height(k-1) + dz
            enddo
            do k=1,nsig+1
@@ -674,8 +666,6 @@ program drwsim
                        zob = dpres
                        call grdcrd1(dpres,zges,nsig,1) ! get grid coordinates of dpres from zges
                        !call grdcrd1(dpres,nsig,zges,nsig,1) ! get grid coordinates of dpres from zges
-                       !write(6,*) "debug:",sin2,termg,termr,termrg,maxval(hges),maxval(zges)
-                       !write(6,*) "dpres1/dpres2=",zob,dpres!,zges
 !**********************************CONVERT GEOP HEIGHT TO GEOM HEIGHT****!
 
                        !--Interpolate guess dbz to observation location - cycle if below threshold.
@@ -693,6 +683,7 @@ program drwsim
                           sintilt = sin(thistiltr)   ! sin(tilt angle)
                           !-------------WIND FORWARD MODEL-----------------------------------------!   
                           drwpol(itilt,iazm,igate) = ugesin*cosazm*costilt  +vgesin*sinazm*costilt  +wgesin*sintilt 
+                           
                           ndata=ndata+1
                        end if dbzCheck
                     end if ifinside

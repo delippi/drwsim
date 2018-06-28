@@ -376,7 +376,7 @@ subroutine tintrp2a_sliced(fin,gout,dxin,dyin,nlevs)
 
 ! Declare passed variables
   integer(i_kind)                              ,intent(in   ) :: nlevs
-  real(r_kind),dimension(3,3,nlevs,1),intent(in   ) :: fin
+  real(r_kind),dimension(3,3,nlevs),intent(in   ) :: fin
   real(r_kind),                                 intent(in   ) :: dxin,dyin
   real(r_kind),dimension(nlevs)         ,intent(  out) :: gout
 
@@ -389,7 +389,7 @@ subroutine tintrp2a_sliced(fin,gout,dxin,dyin,nlevs)
   
   real(r_kind),dimension(1) :: dx,dy
   real(r_kind),dimension(nlevs,1) :: g  
-  f=fin(:,:,:,1)
+  f=fin(:,:,:)
   n=1
   dx(1)=dxin
   dy(1)=dyin
