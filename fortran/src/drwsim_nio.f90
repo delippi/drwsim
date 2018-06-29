@@ -135,7 +135,6 @@ program drwsim
   real(r_kind),              dimension(nlon*nlat) :: q1d
   real(r_kind) :: dlonm1,dlonp1,dlatm1,dlatp1,radar_xa,radar_ya,radar_xb,radar_yb
   integer(i_kind) :: bufrcount
-!  logical :: geometric_height_switch
 
 
   !---------GLOBAL RADAR CSV FILE VARS---------!
@@ -250,7 +249,7 @@ program drwsim
    else if(vcpid == 998 ) then ! my vcp for testing
      nelv=1_i_kind
      allocate(tilts(nelv))
-     tilts(1:nelv)=(/ real(r_kind) :: 5.0/)
+     tilts(1:nelv)=(/ real(r_kind) :: 0.5/)
    end if
   !----CREATE VOLUME COVERAGE PATTERN (VCP)----end
 
@@ -304,7 +303,7 @@ program drwsim
 
 
 !------ OPEN GLOBAL RADAR LIST ---------------------------
-  write(*,*) "Reading Global Radar List"
+  write(6,*) "Reading Global Radar List"
   numradars=-1
 
   !-Initial read to count the number of radars in the file list.
@@ -319,7 +318,7 @@ program drwsim
      end if
   end do
   close(41)
-  write(*,*) "Number of radars = ",numradars
+  write(6,*) "Number of radars = ",numradars
 
   !-Second read to store the radar metadata
   allocate(dfid(numradars),dflat(numradars),dflon(numradars),dfheight(numradars))
@@ -335,7 +334,7 @@ program drwsim
      end if
   end do
   close(40)
-  write(*,*) "Done: Reading Global Radar List"
+  write(6,*) "Done: Reading Global Radar List"
 
 
 !------ OPEN NEMSIO FILE FOR READING -----------------------
@@ -398,8 +397,7 @@ program drwsim
         ges_v(:,:,isig,itime)=reshape(v1d(:),(/size(work,1),size(work,2)/))
 
         ! w
-!        call nemsio_readrecv(gfile,'w_tot','mid layer',isig,w1d,iret=iret)
-        call nemsio_readrecv(gfile,'dzdt','mid layer',isig,w1d,iret=iret)
+        call nemsio_readrecv(gfile,'dzdt','mid layer',isig,w1d,iret=iret) !FV3=dzdt; NMMB=w_tot
         ges_w(:,:,isig,itime)=reshape(w1d(:),(/size(work,1),size(work,2)/))
 
         ! dbz
@@ -458,9 +456,8 @@ program drwsim
         ges_lnprsl(:,:,isig)=log(ges_prsl(:,:,isig)) 
      enddo
      
-     !-Compute compressibility factor (Picard et al 2008) and geopotential
-     !heights at mid layer: from guess_grids.f90 line 1328 
-     write(6,*) "Computing geopotential height at mid layer: starting"
+     !-Compute geopotential heights at mid layer: from guess_grids.f90 line 1328 
+     write(6,*) "Computing geopotential height at mid layer: started"
      rdog = rd/grav
      do i=1,nlon     !LIPPI Flipped the order of nlon/nlat
         do j=1,nlat
@@ -487,12 +484,12 @@ program drwsim
            enddo
         enddo
      enddo 
-     deallocate(ges_prsi,ges_prsl)
+     deallocate(ges_prsi,ges_prsl,ges_tv,ges_t,ges_q)
 
 
      write(6,*) "Computing geopotential height at mid layer: done"
      deallocate(lats,lons)
-     print *, idate,nfhour
+     write(6,*) idate,nfhour
 
   write(*,*) 'Done: Reading NEMSIO files'
   end if ! NEMSIO READ
@@ -525,7 +522,6 @@ program drwsim
 
   bufrcount=0
   loopOVERtime: do itime=1,ntime
-     !geometric_height_switch=.true.
      if(itime > 1) call newdate(iadate,1,iadate) ! don't increment the first time.
      loopOVERradars: do irid=1,numradars 
         allocate(drwpol(nelv,360,numgates))
@@ -550,14 +546,12 @@ program drwsim
               loopOVERazimuths: do iazm=azmspc,360,azmspc
                  1000 format(a5,1x,i4,i2.2,i2.2,i2.2,&
                           3x,a6,1x,a4,&
-                          !3x,a5,1x,f4.1,a1,f4.1,&
                           3x,a5,1x,i2,a2,i2,1x,a1,f4.1,a1,f4.1,a1,&
                           3x,a4,1x,i3,a4,&
                           3x,a4,1x,i3,&
                           3x,a6,1x,i2,a1,i5,a9)
                  write(6,1000),"Date:",iadate(1),iadate(2),iadate(3),iadate(4),&
                                "Radar:",adjustl(trim(dfid(irid))),&
-                               !"Tilt:",tilts(itilt),"/",tilts(nelv),&
                                "Tilt:",itilt,"of",nelv,"(",tilts(itilt),"/",tilts(nelv),")",&
                                "Azm:",iazm,"/360",&
                                "VCP:",vcpid,&
@@ -595,7 +589,6 @@ program drwsim
                        call invtllv(rlonloc,rlatloc,rlon0,clat0,slat0,rlonglob,rlatglob)
 
                        !--Determine the x,y (grid relative location) of the radar location.
-                       !--Only need to do this once per radar.
                        radar_location=.false.
                        if(radar_location) then
                           radar_lat=dflat(irid) !lat/lons stored as deg.
@@ -665,7 +658,6 @@ program drwsim
                     !  Save the observation height in zob for later use.
                        zob = dpres
                        call grdcrd1(dpres,zges,nsig,1) ! get grid coordinates of dpres from zges
-                       !call grdcrd1(dpres,nsig,zges,nsig,1) ! get grid coordinates of dpres from zges
 !**********************************CONVERT GEOP HEIGHT TO GEOM HEIGHT****!
 
                        !--Interpolate guess dbz to observation location - cycle if below threshold.
@@ -682,8 +674,7 @@ program drwsim
                           costilt = cos(thistiltr)   ! cos(tilt angle)
                           sintilt = sin(thistiltr)   ! sin(tilt angle)
                           !-------------WIND FORWARD MODEL-----------------------------------------!   
-                          drwpol(itilt,iazm,igate) = ugesin*cosazm*costilt  +vgesin*sinazm*costilt  +wgesin*sintilt 
-                           
+                          drwpol(itilt,iazm,igate) = ugesin*cosazm*costilt +vgesin*sinazm*costilt +wgesin*sintilt 
                           ndata=ndata+1
                        end if dbzCheck
                     end if ifinside
@@ -691,7 +682,7 @@ program drwsim
               end do loopOVERazimuths
            end do loopOVERtilts
 
-           if(diagprint .and. diagverbose >= 1) write(*,*) "min/max drw: ",minval(drwpol),maxval(drwpol)
+           if(diagprint .and. diagverbose >= 1) write(6,*) "min/max drw: ",minval(drwpol),maxval(drwpol)
 
 
            !-------------BUFFERIZE--------------------------------------------------!
@@ -713,7 +704,7 @@ program drwsim
               end if
            end do
            close(41)
-           if(diagprint .and. diagverbose >= 2) write(*,*) message_type
+           if(diagprint .and. diagverbose >= 2) write(6,*) message_type
            write(6,*) 'iadate',iadate
            call w3ai15(iadate(1),yyyy,1,4,'')
            call w3ai15(iadate(2),  mm,1,2,'')
@@ -739,10 +730,10 @@ program drwsim
            bufrtilt: do itiltbufr=1,nelv
               intdate=iadate(1)*1000000 + iadate(2)*10000 + iadate(3)*100 + iadate(4) ! int(yyyymmddhh)
               hdr(5) = tilts(itiltbufr) 
+
               if(.not.bufrisopen) then !open a new message for each station ID 
                  write(6,*) "intdate",intdate
                  write(6,*) "cdate",cdate
-                 !bufrfilename=trim(cdate)//'_fv3.t'//trim(hh)//'z_'//trim(adjustl(chdr))//'_drw.bufr'
                  bufrfilename=trim(cdate)//'_fv3.t'//trim(hh)//'z_drw.bufr'
                  write(6,*) "bufr file name is:",bufrfilename
                  open(unit=11,file='l2rwbufr.table',status='old',action='read',form='formatted')
@@ -754,10 +745,10 @@ program drwsim
                     open(unit=10,file=trim(bufrfilename),status='old',    action='write',form='unformatted')
                     call openbf(10,'APN',11)
                  endif
-
                  bufrisopen=.true.
                  bufrcount=bufrcount+1
               end if
+
               call openmb(10,trim(subset),intdate)
               bufrazm: do iazmbufr=360/azimuths,360,360/azimuths
                  iazmbufr90=90-iazmbufr
