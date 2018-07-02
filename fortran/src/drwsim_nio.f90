@@ -164,7 +164,7 @@ program drwsim
 
   !---------L2RWBUFR CSV TABLE VARS------------!
   character(10) :: message_type
-  character(8) :: cdummy
+  character(50) :: cdummy
 
   !-------------TIMER VARS---------------------!
   integer(i_kind) :: time_array_0(8)
@@ -309,9 +309,9 @@ program drwsim
 
   !-Initial read to count the number of radars in the file list.
   open(41,file=trim(radarcsv))
-  read(41,'(a2,1x,a3,1x,a3,1x,a6)') cdummy !read 1st line which is just a header.
+  read(41,*) cdummy !read 1st line which is just a header.
   do !ii=1,numradars
-     read(41,'(a12,1x,2f12.4,1x,f6.2)',iostat=io) cdummy 
+     read(41,*,iostat=io) cdummy 
      if(io == 0) then
        numradars=numradars+1
      elseif(io < 0) then
@@ -324,9 +324,9 @@ program drwsim
   !-Second read to store the radar metadata
   allocate(dfid(numradars),dflat(numradars),dflon(numradars),dfheight(numradars))
   open(40,file=trim(radarcsv))
-  read(40,'(a2,1x,a3,1x,a3,1x,a6)') cdummy !read 1st line which is just a header.
+  read(40,*) cdummy !read 1st line which is just a header.
   do ii=1,numradars
-     read(40,'(a12,1x,2f12.4,1x,f12.2)') dfid(ii),dflat(ii),dflon(ii),dfheight(ii)
+     read(40,*) dfid(ii),dflat(ii),dflon(ii),dfheight(ii)
      dfid(ii)=trim(dfid(ii))
 
      if(diagprint .and. diagverbose >= 1) then
@@ -336,7 +336,6 @@ program drwsim
   end do
   close(40)
   write(6,*) "Done: Reading Global Radar List"
-
 
 !------ OPEN NEMSIO FILE FOR READING -----------------------
   if(datatype=='NEMSIO') then
@@ -670,13 +669,13 @@ program drwsim
                           call tintrp3(ges_u(:,:,:,itime),ugesin,dlon,dlat,dpres)
                           call tintrp3(ges_v(:,:,:,itime),vgesin,dlon,dlat,dpres)
                           call tintrp3(ges_w(:,:,:,itime),wgesin,dlon,dlat,dpres)
-                             
-                          !--Convert guess u,v,w wind components to radial value
+
+                          !--Convert guess u,v,w wind components to radial value               
                           cosazm  = cos(thisazimuthr)! cos(azimuth angle)                       
                           sinazm  = sin(thisazimuthr)! sin(azimuth angle)                       
                           costilt = cos(thistiltr)   ! cos(tilt angle)
                           sintilt = sin(thistiltr)   ! sin(tilt angle)
-                          !-------------WIND FORWARD MODEL-----------------------------------------!   
+                          !-------------WIND FORWARD MODEL-----------------------------------------!
                           drwpol(itilt,iazm,igate) = ugesin*cosazm*costilt +vgesin*sinazm*costilt +wgesin*sintilt 
                           ndata=ndata+1
                        end if dbzCheck
