@@ -129,6 +129,7 @@ program drwsim
   real(r_kind),              dimension(nlon*nlat) :: u1d
   real(r_kind),              dimension(nlon*nlat) :: v1d
   real(r_kind),              dimension(nlon*nlat) :: w1d
+  real(r_kind),              dimension(nlon*nlat) :: dbz1d
   real(r_kind),              dimension(nlon*nlat) :: sz1d
   real(r_kind),              dimension(nlon*nlat) :: sp1d
   real(r_kind),              dimension(nlon*nlat) :: t1d
@@ -260,38 +261,38 @@ program drwsim
   filename=trim(datapath) // trim(filename)
 
   if(diagprint .and. diagverbose >= 1) then
-     write(*,*) "----NC FILE SPECS--------"
-     write(*,*) "nlat",nlat
-     write(*,*) "nlon",nlon
-     write(*,*) "nsig",nsig
+     write(6,*) "----NC FILE SPECS--------"
+     write(6,*) "nlat",nlat
+     write(6,*) "nlon",nlon
+     write(6,*) "nsig",nsig
      1001 format (a16,f5.2,a3)
-     write(*,1001) "grid spacing = ~",360.0*111.0/nlon,"-km"
+     write(6,1001) "grid spacing = ~",360.0*111.0/nlon,"-km"
 
-     write(*,*) "----Namelist settings----"
-     write(*,*) "radarcsv:   ",radarcsv
-     write(*,*) "diagprint:  ",diagprint
-     write(*,*) "diagverbose:",diagverbose
-     write(*,*) "staid       ",staid
-     write(*,*) "tilts       ",tilts
-     write(*,*) "azimuths    ",azimuths
-     write(*,*) "numgates    ",numgates
-     write(*,*) "ithin       ",ithin
-     write(*,*) "gatespc     ",gatespc
-     write(*,*) "maxobrange  ",maxobrange
-     write(*,*) "minobrange  ",minobrange
-     write(*,*) "mintilt     ",mintilt
-     write(*,*) "maxtilt     ",maxtilt
-     write(*,*) "mindbz      ",mindbz
-     write(*,*) "datapath:   ",datapath
-     write(*,*) "nemsio file:  ",filename
+     write(6,*) "----Namelist settings----"
+     write(6,*) "radarcsv:   ",radarcsv
+     write(6,*) "diagprint:  ",diagprint
+     write(6,*) "diagverbose:",diagverbose
+     write(6,*) "staid       ",staid
+     write(6,*) "tilts       ",tilts
+     write(6,*) "azimuths    ",azimuths
+     write(6,*) "numgates    ",numgates
+     write(6,*) "ithin       ",ithin
+     write(6,*) "gatespc     ",gatespc
+     write(6,*) "maxobrange  ",maxobrange
+     write(6,*) "minobrange  ",minobrange
+     write(6,*) "mintilt     ",mintilt
+     write(6,*) "maxtilt     ",maxtilt
+     write(6,*) "mindbz      ",mindbz
+     write(6,*) "datapath:   ",datapath
+     write(6,*) "nemsio file:  ",filename
   end if
   if(modulo(360,azimuths) /= 0) stop "ERROR: !!! AZIMUTHS IN NAMELIST IS NOT A FACTOR OF 360-DEG. !!!"
 
   if(diagprint .and. diagverbose >= 3) then
-     write(*,*) "deg2rad",deg2rad
-     write(*,*) "rearth",rearth
-     if(deg2rad>0) write(*,*) "(derived constants succesfully initialized)"
-     if(rearth==6370.e03_r_kind) write(*,*) "(regional consts sucess init)"
+     write(6,*) "deg2rad",deg2rad
+     write(6,*) "rearth",rearth
+     if(deg2rad>0) write(6,*) "(derived constants succesfully initialized)"
+     if(rearth==6370.e03_r_kind) write(6,*) "(regional consts sucess init)"
   end if
 
   if (minobrange >= maxobrange) then
@@ -304,7 +305,7 @@ program drwsim
 
 !------ OPEN GLOBAL RADAR LIST ---------------------------
   write(6,*) "Reading Global Radar List"
-  numradars=-1
+  numradars=0
 
   !-Initial read to count the number of radars in the file list.
   open(41,file=trim(radarcsv))
@@ -325,11 +326,11 @@ program drwsim
   open(40,file=trim(radarcsv))
   read(40,'(a2,1x,a3,1x,a3,1x,a6)') cdummy !read 1st line which is just a header.
   do ii=1,numradars
-     read(40,'(a12,1x,2f12.4,1x,f6.2)') dfid(ii),dflat(ii),dflon(ii),dfheight(ii)
+     read(40,'(a12,1x,2f12.4,1x,f12.2)') dfid(ii),dflat(ii),dflon(ii),dfheight(ii)
      dfid(ii)=trim(dfid(ii))
 
      if(diagprint .and. diagverbose >= 1) then
-        1002 format(a5,1x,f7.2,1x,f7.2,1x,f7.2)
+        1002 format(a5,1x,f9.2,1x,f9.2,1x,f9.2)
         write(6,1002) dfid(ii),dflat(ii),dflon(ii),dfheight(ii)
      end if
   end do
@@ -339,7 +340,7 @@ program drwsim
 
 !------ OPEN NEMSIO FILE FOR READING -----------------------
   if(datatype=='NEMSIO') then
-     write(*,*) 'Open and Read NEMSIO files'
+     write(6,*) 'Open and Read NEMSIO files'
      allocate(work(nlon,nlat))
      work    = zero
 
@@ -352,7 +353,7 @@ program drwsim
      call newdate(idate,nfhour,iadate)
 
      ! rlats rlons
-     write(*,*) 'Reading lat lon'
+     write(6,*) 'Reading lat lon'
      allocate(lats(nlon*nlat),lons(nlon*nlat),rlats(nlat),rlons(nlon))
      call nemsio_getfilehead(gfile,iret=iret,lon=lons,lat=lats)
      do ilon=1,nlon
@@ -384,9 +385,9 @@ program drwsim
      ges_tv(:,:,:,:)=0.0_r_kind !initialize
     
 
-     write(*,*) 'Reading u,v,w,q,t,dbz level by level'
+     write(6,*) 'Reading u,v,w,q,t,dbz level by level'
      do isig=1,nsig
-        write(*,*) 'level = ',isig
+        write(6,*) 'level = ',isig
 
         ! u
         call nemsio_readrecv(gfile,'ugrd','mid layer',isig,u1d,iret=iret)
@@ -401,8 +402,10 @@ program drwsim
         ges_w(:,:,isig,itime)=reshape(w1d(:),(/size(work,1),size(work,2)/))
 
         ! dbz
-        !call nemsio_readrecv(gfile,'','mid layer',isig,dbz1d,iret=iret)
-        !ges_dbz(:,:,isig,itime)=reshape(dbz1d(:),(/size(work,1),size(work,2)/))
+        if(use_dbz) then !even if this is false, dbz will be initialized to 0 everywhere.
+           call nemsio_readrecv(gfile,'','mid layer',isig,dbz1d,iret=iret)
+           ges_dbz(:,:,isig,itime)=reshape(dbz1d(:),(/size(work,1),size(work,2)/))
+        endif
 
         ! q 
         call nemsio_readrecv(gfile,'spfh','mid layer',isig,q1d,iret=iret)
@@ -415,14 +418,14 @@ program drwsim
      end do
 
      ! read sfc height
-     write(*,*) 'Reading surface height'
+     write(6,*) 'Reading surface height'
      allocate(ges_z(nlon,nlat))
      ges_z=0.0_r_kind ! initialize
      call nemsio_readrecv(gfile,'hgt','sfc',1,sz1d,iret=iret)
      ges_z(:,:)=reshape(sz1d(:),(/size(work,1),size(work,2)/))
 
      ! read sfc pressure
-     write(*,*) 'Reading surface pressure'
+     write(6,*) 'Reading surface pressure'
      allocate(ges_ps(nlonsin,nlatsin))
      ges_ps=0.0_r_kind ! initialize
      call nemsio_readrecv(gfile,'pres','sfc',1,sp1d,iret=iret)
@@ -430,7 +433,7 @@ program drwsim
      ges_ps=ges_ps*0.01_r_kind ! convert ps to millibars.
 
      ! ak bk --> interface pressure/height calculation
-     write(*,*) 'Reading ak bk'
+     write(6,*) 'Reading ak bk'
      allocate(nems_vcoord(nsig+1,3,2))
      allocate(ges_prsi(nlon,nlat,nsig+1))
      allocate(ges_prsl(nlon,nlat,nsig),ges_lnprsl(nlon,nlat,nsig))
@@ -491,7 +494,7 @@ program drwsim
      deallocate(lats,lons)
      write(6,*) idate,nfhour
 
-  write(*,*) 'Done: Reading NEMSIO files'
+  write(6,*) 'Done: Reading NEMSIO files'
   end if ! NEMSIO READ
 
   !set up information needed to interpolate model to observation
@@ -518,7 +521,7 @@ program drwsim
   !--Call Timer
   call date_and_time(values=time_array_0)
   start_time = time_array_0(5)*3600 + time_array_0(6)*60 + time_array_0(7) + time_array_0(8)*0.001
-  write(*,*) 'STARTING RADAR WIND SIMULATION:'
+  write(6,*) 'STARTING RADAR WIND SIMULATION:'
 
   bufrcount=0
   loopOVERtime: do itime=1,ntime
@@ -641,7 +644,7 @@ program drwsim
 
                        !--Remove terrain height from ob absolute height and reject if below ground.
                        if(zsges>=dpres) then
-                         !write(*,*) 'zsges =',zsges,'is greater than dpres',dpres,'. Rejecting ob.'
+                         !write(6,*) 'zsges =',zsges,'is greater than dpres',dpres,'. Rejecting ob.'
                          cycle
                        end if
                        dpres=dpres-zsges
@@ -662,7 +665,7 @@ program drwsim
 
                        !--Interpolate guess dbz to observation location - cycle if below threshold.
                        call tintrp3(ges_dbz(:,:,:,itime),dbzgesin,dlon,dlat,dpres)
-                       dbzCheck: if(dbzgesin >= mindbz .and. use_dbz) then
+                       dbzCheck: if(dbzgesin >= mindbz) then
                           !--Interpolate guess wind to observation location                                  
                           call tintrp3(ges_u(:,:,:,itime),ugesin,dlon,dlat,dpres)
                           call tintrp3(ges_v(:,:,:,itime),vgesin,dlon,dlat,dpres)
@@ -690,7 +693,7 @@ program drwsim
            ! angle at a single time. We will put this information in its own bufr
            ! file hence this is contained within loopOVERtime.
            !
-           write(*,*)"Writing bufr file for ",trim(dfid(irid))
+           write(6,*)"Writing bufr file for ",trim(dfid(irid))
            hdstr='SSTN CLON CLAT SELV ANEL YEAR MNTH DAYS HOUR MINU QCRW ANAZ'
            obstr='DIST125M DMVR DVSW'                     !NL2RW--level 2 radial wind.
            open(41,file='l2rwbufr.table.csv')        
@@ -787,15 +790,15 @@ program drwsim
   hrs =int(        total_time/3600.0       )
   mins=int(    mod(total_time,3600.0)/60.0 )
   secs=int(mod(mod(total_time,3600.0),60.0))
-  write(*,'(a14,i2.2,a1,i2.2,a1,i2.2)')"Elapsed time:   ",hrs,":",mins,":",secs
-  write(*,*) "Elapsed time (s) =", total_time
-  write(*,*) "end of program"
-  write(*,*) 'numradars =',nradars
-  write(*,*) 'numgates =',numgates
-  write(*,*) 'numelevs =',nelv
-  write(*,*) 'numazims =',azimuths
-  write(*,*) 'numtimes =',ntime
-  write(*,*) 'ndata    =',ndata
+  write(6,'(a14,i2.2,a1,i2.2,a1,i2.2)')"Elapsed time:   ",hrs,":",mins,":",secs
+  write(6,*) "Elapsed time (s) =", total_time
+  write(6,*) "end of program"
+  write(6,*) 'numradars =',nradars
+  write(6,*) 'numgates =',numgates
+  write(6,*) 'numelevs =',nelv
+  write(6,*) 'numazims =',azimuths
+  write(6,*) 'numtimes =',ntime
+  write(6,*) 'ndata    =',ndata
 end program drwsim
 
 
