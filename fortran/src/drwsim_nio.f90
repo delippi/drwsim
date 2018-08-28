@@ -6,11 +6,12 @@ program drwsim
                        init_constants,tiny_r_kind
   use constants, only: flattening,semi_major_axis,grav_ratio,grav,wgtlim,&
                        grav_equator,eccentricity,somigliana
-  !use constants, only: one,grav,half
+  use constants, only: one,grav,half,huge_single
   use constants, only: eps,rd,t0c,fv
   use constants, only: cpf_a0,cpf_a1,cpf_a2,cpf_b0,cpf_b1,cpf_c0,cpf_c1,cpf_d,cpf_e
   use constants, only: psv_a,psv_b,psv_c,psv_d
   use constants, only: ef_alpha,ef_beta,ef_gamma
+  use constants, only: rd_over_cp
 
   use interp_util
   use netcdf
@@ -29,6 +30,7 @@ program drwsim
   real(r_kind),parameter :: four_thirds = 4.0_r_kind / 3.0_r_kind
   real(r_kind),parameter :: r8          = 8.0_r_kind
   real(r_kind),parameter :: r360        = 360.0_r_kind
+  real(r_kind),parameter :: r720        = 720.0_r_kind
 
 !--General declarations
   integer(i_kind) :: iret
@@ -46,6 +48,8 @@ program drwsim
   real(r_kind) :: sinazm
   real(r_kind) :: costilt
   real(r_kind) :: sintilt
+  real(r_kind) :: cosazm_costilt,sinazm_costilt
+!  real(r_kind), dimension(nsig) :: ugesprofile,vgesprofile,wgesprofile
   real(r_kind) :: ugesin
   real(r_kind) :: vgesin
   real(r_kind) :: wgesin
@@ -56,10 +60,14 @@ program drwsim
   real(r_kind) :: thistiltr,selev0,celev0,thisrange,thishgt
   real(r_kind) :: celev,selev,gamma,thisazimuthr,thisazimuth,rlon0,rlat0,stahgt, &
                   clat0,slat0,dlat,dlon,thislon,thislat, &
-                  rlonloc,rlatloc,rlonglob,rlatglob,rad_per_meter, &
-                  radar_x,radar_y,radar_lon,radar_lat
+                  rlonloc,rlatloc,rlonglob,rlatglob,rad_per_meter!, &
+                  !radar_x,radar_y,radar_lon,radar_lat
+!  real(r_kind) :: clat1,caz0,saz0,cdlon,sdlon,caz1,saz1,&
+!                  corrected_azimuth,delazmmax,corrected_tilt
+!  real(r_kind) :: addelev,zsges0,beamdepth,elevtop,elevbot,kbeamtop,kbeambot,kbeamdiffmax,kbeamdiffmin
   !real(r_kind),allocatable :: delz(:,:),height(:,:),delp(:,:)
   real(r_kind),allocatable :: drwpol(:,:,:) !tilt,azm,gate
+  real(r_kind)             :: mindrwpol,maxdrwpol
   integer(i_kind) :: irid,itilt,iazm,igate,itime,isig
 
   character(4) this_staid
@@ -97,6 +105,7 @@ program drwsim
 
   ! ALL NEMSIO ADDITIONS HERE BEFORE SORTING 
   type(nemsio_gfile) :: gfile
+  real(r_kind) :: kap1,kapr
   integer(i_kind) :: nlonsin,nlatsin,nlevsin,idvc
   integer(i_kind) :: idate(4)
   integer(i_kind) :: nfhour
@@ -134,7 +143,7 @@ program drwsim
   real(r_kind),              dimension(nlon*nlat) :: sp1d
   real(r_kind),              dimension(nlon*nlat) :: t1d
   real(r_kind),              dimension(nlon*nlat) :: q1d
-  real(r_kind) :: dlonm1,dlonp1,dlatm1,dlatp1,radar_xa,radar_ya,radar_xb,radar_yb
+  real(r_kind) :: dlonm1,dlonp1,dlatm1,dlatp1!,radar_xa,radar_ya,radar_xb,radar_yb
   integer(i_kind) :: bufrcount
 
 
@@ -156,8 +165,8 @@ program drwsim
   character(80)   :: bufrfilename
   character(80)   :: hdstr
   character(80)   :: obstr
-  real(r_double)  :: hdr(12)
-  real(r_double),allocatable :: obs(:,:)
+  real(r_kind)  :: hdr(14)
+  real(r_kind),allocatable :: obs(:,:)
   character(8) :: chdr
   character(8) :: subset
   equivalence (hdr(1),chdr)
@@ -191,7 +200,7 @@ program drwsim
   integer(i_kind) i,j
   real(r_kind) dz,rdog
   real(r_kind),dimension(nsig+1):: height
-  real(r_kind) fact, pw, tmp_K
+  real(r_kind) cmpr, x_v, rl_hm, fact, pw, tmp_K, tmp_C, prs_sv, prs_a, ehn_fct, prs_v
 
 
   namelist/drw/datatype,ntime,staid,ithin,mintilt,maxtilt,maxobrange,minobrange,&
@@ -206,7 +215,7 @@ program drwsim
 
   !--Set up the constants module used here
   call init_constants_derived
-  call init_constants(.true.)    !initialize regional constants
+  call init_constants(.false.)    !initialize regional constants
   mindat=ione
   diagprint=.false.
   diagverbose=0
@@ -224,7 +233,7 @@ program drwsim
   !    All simulated obs are assumed to be valid at the background timestamp.
   !    I cannot include this, because I do not have minutely output to do so.
   if(vcpid == 215) then
-     nelv=15
+     nelv=14
      allocate(tilts(nelv))
      tilts(1:nelv)=(/ real(r_kind) :: 0.5,0.9,1.3,1.8,2.4,3.1,4.0,5.1,6.4,8.0,10.0,12.0,14.0,16.7/)
    else if(vcpid == 11 .or. vcpid == 211) then
@@ -250,7 +259,7 @@ program drwsim
    else if(vcpid == 998 ) then ! my vcp for testing
      nelv=1_i_kind
      allocate(tilts(nelv))
-     tilts(1:nelv)=(/ real(r_kind) :: 0.5/)
+     tilts(1:nelv)=(/ real(r_kind) :: 1.0,2.0,5.0,10.0/)
    end if
   !----CREATE VOLUME COVERAGE PATTERN (VCP)----end
 
@@ -330,7 +339,7 @@ program drwsim
      dfid(ii)=trim(dfid(ii))
 
      if(diagprint .and. diagverbose >= 1) then
-        1002 format(a5,1x,f9.2,1x,f9.2,1x,f9.2)
+        1002 format(a5,1x,f15.8,1x,f15.8,1x,f15.8)
         write(6,1002) dfid(ii),dflat(ii),dflon(ii),dfheight(ii)
      end if
   end do
@@ -386,7 +395,7 @@ program drwsim
 
      write(6,*) 'Reading u,v,w,q,t,dbz level by level'
      do isig=1,nsig
-        write(6,*) 'level = ',isig
+!        write(6,*) 'level = ',isig
 
         ! u
         call nemsio_readrecv(gfile,'ugrd','mid layer',isig,u1d,iret=iret)
@@ -428,8 +437,8 @@ program drwsim
      allocate(ges_ps(nlonsin,nlatsin))
      ges_ps=0.0_r_kind ! initialize
      call nemsio_readrecv(gfile,'pres','sfc',1,sp1d,iret=iret)
+     sp1d=0.001_r_kind*sp1d
      ges_ps(:,:)=reshape(sp1d(:),(/size(work,1),size(work,2)/))
-     ges_ps=ges_ps*0.01_r_kind ! convert ps to millibars.
 
      ! ak bk --> interface pressure/height calculation
      write(6,*) 'Reading ak bk'
@@ -443,45 +452,83 @@ program drwsim
      zges = 0.0_r_kind ! initialize
      call nemsio_getfilehead(gfile,iret=iret,vcoord=nems_vcoord)
      if ( idvc == 2 ) then      ! hybrid coordinate
-        ak = 0.01_r_kind*nems_vcoord(1:nsig+1,1,1) ! convert to mb
+        ak = nems_vcoord(1:nsig+1,1,1) ! convert to mb
         bk = nems_vcoord(1:nsig+1,2,1)
      endif
 
      ! This is how you compute the pressure at interfaces (not with delz/delp)
+     ! guess_grid.F90 @ 1068
      do isig=1,nsig+1
-        ges_prsi(:,:,isig)=ak(isig)+bk(isig)*ges_ps ! pressure at interfaces
+        ges_prsi(:,:,isig)=0.001_r_kind*ak(isig)+(bk(isig)*ges_ps) ! pressure at interfaces
      enddo
      deallocate(ak,bk)
-     !Simplified method to compute ges_prsl via averaging
-     do isig=1,nsig
-        ges_prsl(:,:,isig)  =half*  (ges_prsi(:,:,isig) +   ges_prsi(:,:,isig+1))
-        ges_lnprsl(:,:,isig)=log(ges_prsl(:,:,isig)) 
+!guess_grids.F90 @ 1140 subroutine load_prsges
+     kap1=rd_over_cp+one
+     kapr=one/rd_over_cp
+     do j=1,nlat
+        do i=1,nlon
+           do isig=1,nsig
+              !load mid-layer pressure by using phillips vertical interpolation
+              ges_prsl(i,j,isig)=((ges_prsi(i,j,isig)**kap1-ges_prsi(i,j,isig+1)**kap1)/&
+                    (kap1*(ges_prsi(i,j,isig)-ges_prsi(i,j,isig+1))))**kapr
+           end do
+        end do
      enddo
-     
-     !-Compute geopotential heights at mid layer: from guess_grids.f90 line 1328 
+!guess_grids.F90 @ 1392 subroutine load_geop_hgt     
+     do i=1,nlon
+        do j=1,nlat
+           !--Compute virtual temperature from dry temp and specific humididty.
+           do k=1,nsig
+              ges_tv(i,j,k,1) = ges_t(i,j,k,1) * (one + fv * (ges_q(i,j,k,1)))
+           enddo
+        enddo
+     enddo
+     !-Compute geopotential heights at mid layer
      write(6,*) "Computing geopotential height at mid layer: started"
      rdog = rd/grav
-     do i=1,nlon     !LIPPI Flipped the order of nlon/nlat
-        do j=1,nlat
+     do j=1,nlat     !LIPPI Flipped the order of nlon/nlat
+        do i=1,nlon
            k=1
-           fact   = one + fv * ges_q(i,j,k,1)
-           pw     = eps + ges_q(i,j,k,1)*(one - eps)
-           tmp_K  = ges_t(i,j,k,1) ! I believe it is already in Kelvin.
-           ges_tv(i,j,k,1) = tmp_K * fact !tmp_K=ges_tv/fact 
-           h       = rdog * ges_tv(i,j,k,1)
-           dz      = h * log(ges_prsi(i,j,k)/ges_prsl(i,j,k))
-           height(k) = ges_z(i,j) + dz
+           fact     = one + fv * ges_q(i,j,k,1)
+           pw       = eps + ges_q(i,j,k,1)*( one - eps )
+           tmp_K    = ges_tv(i,j,k,1) / fact
+           tmp_C    = tmp_K - t0c
+           prs_sv   = exp(psv_a*tmp_K**2 + psv_b*tmp_K + psv_c + psv_d/tmp_K)  !Pvap sat, eq A1.1 (Pa)
+           prs_a   = thousand * exp(half*(log(ges_prsi(i,j,k)) + log(ges_prsl(i,j,k))))     ! (Pa)
+           ehn_fct = ef_alpha + ef_beta*prs_a + ef_gamma*tmp_C**2 ! enhancement factor (eq. A1.2)
+           prs_v   = ges_q(i,j,k,1) * prs_a / pw   ! vapor pressure (Pa)
+           rl_hm   = prs_v / prs_sv    ! relative humidity
+           x_v     = rl_hm * ehn_fct * prs_sv / prs_a     ! molar fraction of water vapor (eq. A1.3)
+          ! Compressibility factor (eq A1.4 from Picard et al 2008)
+           cmpr = one - (prs_a/tmp_K) * (cpf_a0 + cpf_a1*tmp_C + cpf_a2*tmp_C**2 &
+                           + (cpf_b0 + cpf_b1*tmp_C)*x_v + (cpf_c0 + cpf_c1*tmp_C)*x_v**2 ) &
+                           + (prs_a**2/tmp_K**2) * (cpf_d + cpf_e*x_v**2)
+
+           h        = rdog * ges_tv(i,j,k,1)
+           dz       = h * cmpr * log(ges_prsi(i,j,k)/ges_prsl(i,j,k))
+           height(k)= ges_z(i,j) + dz
 
            do k=2,nsig
-              fact   = one + fv * ges_q(i,j,k-1,1)
-              pw     = eps + ges_q(i,j,k-1,1)*(one - eps)
-              tmp_K  = ges_t(i,j,k-1,1) ! I believe it is already in Kelvin.
-              ges_tv(i,j,k-1,1) = tmp_K * fact !tmp_K=ges_tv/fact 
-              h       = rdog * ges_tv(i,j,k-1,1)
-              dz      = h * log(ges_prsl(i,j,k-1)/ges_prsl(i,j,k))
+              fact     = one + fv * half * (ges_q(i,j,k-1,1)+ges_q(i,j,k,1))
+              pw       = eps + half * (ges_q(i,j,k-1,1)+ges_q(i,j,k,1))*( one - eps )
+              tmp_K    = half * (ges_tv(i,j,k-1,1)+ges_tv(i,j,k,1)) / fact
+              tmp_C    = tmp_K - t0c
+              prs_sv   = exp(psv_a*tmp_K**2 + psv_b*tmp_K + psv_c + psv_d/tmp_K) !Pvap sat, eq A1.1 (Pa)
+              prs_a   = thousand * exp(half*(log(ges_prsl(i,j,k-1)) + log(ges_prsl(i,j,k))))     ! (Pa)
+              ehn_fct = ef_alpha + ef_beta*prs_a + ef_gamma*tmp_C**2 ! enhancement factor (eq. A1.2)
+              prs_v   = half * (ges_q(i,j,k-1,1)+ges_q(i,j,k,1)) * prs_a / pw   ! vapor pressure (Pa)
+              rl_hm   = prs_v / prs_sv    ! relative humidity
+              x_v     = rl_hm * ehn_fct * prs_sv / prs_a     ! molar fraction of water vapor (eq. A1.3)
+             ! Compressibility factor (eq A1.4 from Picard et al 2008)
+              cmpr = one - (prs_a/tmp_K) * (cpf_a0 + cpf_a1*tmp_C + cpf_a2*tmp_C**2 &
+                              + (cpf_b0 + cpf_b1*tmp_C)*x_v + (cpf_c0 + cpf_c1*tmp_C)*x_v**2 ) &
+                              + (prs_a**2/tmp_K**2) * (cpf_d + cpf_e*x_v**2)
+
+              h         = rdog * half * (ges_tv(i,j,k-1,1)+ges_tv(i,j,k,1))
+              dz        = h * cmpr * log(ges_prsl(i,j,k-1)/ges_prsl(i,j,k))
               height(k) = height(k-1) + dz
            enddo
-           do k=1,nsig+1
+           do k=1,nsig
               geop_hgtl(i,j,k) = height(k) - ges_z(i,j)
            enddo
         enddo
@@ -528,12 +575,14 @@ program drwsim
      loopOVERradars: do irid=1,numradars 
         allocate(drwpol(nelv,360,numgates))
         drwpol=-999.0_r_kind !Initialize/Reset the drw polar field
+        mindrwpol=huge_single
+        maxdrwpol=-huge_single
         radar_location=.true. ! logical to only compute radar x,y once later in loop - preset to true.
         this_staid=adjustl(trim(dfid(irid)))
         ifKGRK: if(this_staid==trim(adjustl(staid)) .or. trim(adjustl(staid))=='all') then
-           stahgt=dfheight(irid)
-           rlon0=dflon(irid)*deg2rad
-           rlat0=dflat(irid)*deg2rad
+           stahgt=nint(dfheight(irid)*100.0_r_kind)/100.0_r_kind
+           rlon0=nint(dflon(irid)*100.0_r_kind)/100.0_r_kind*deg2rad !round to nearest 100th and convert to rads
+           rlat0=nint(dflat(irid)*100.0_r_kind)/100.0_r_kind*deg2rad
            clat0=cos(rlat0)
            slat0=sin(rlat0)
            loopOVERtilts:    do itilt=1,nelv
@@ -546,6 +595,8 @@ program drwsim
               celev0=cos(thistiltr)
               selev0=sin(thistiltr)
               loopOVERazimuths: do iazm=azmspc,360,azmspc
+              !loopOVERazimuths: do iazm=225,225,azmspc !360=>90;  90=>0; 180=>270;  270=>180
+              !loopOVERazimuths: do iazm=90,270,azmspc !360=>90;  90=>0; 180=>270;  270=>180
                  1000 format(a5,1x,i4,i2.2,i2.2,i2.2,&
                           3x,a6,1x,a4,&
                           3x,a5,1x,i2,a2,i2,1x,a1,f4.1,a1,f4.1,a1,&
@@ -563,11 +614,13 @@ program drwsim
                  if(thisazimuth<zero) thisazimuth=thisazimuth+r360
                  thisazimuthr=thisazimuth*deg2rad
                  loopOVERgates: do igate=1,numgates     
+                 !loopOVERgates: do igate=390,390
                     inside=.false. ! is our ob location inside the bounds? preset to false, then check.
                     if(igate*gatespc >= minobrange .and. igate*gatespc <= maxobrange) inside=.true.
                     ifinside: if(inside) then
+! read_l2bufr_mod.f90 @ 686 subroutine radar_bufr_read_all
                        !--Find observation height using method from read_l2bufr_mod.f90 
-                       thisrange=igate*gatespc
+                       thisrange=(igate)*gatespc
                        aactual=(rearth+stahgt)
                        a43=aactual*four_thirds
                        b   = thisrange*(thisrange+two*aactual*selev0)
@@ -577,41 +630,26 @@ program drwsim
                        h=ha-epsh
                        thishgt=stahgt+h
                        dpres=thishgt !store the absolute ob height (m) in dpres.                   
-                       !--Find observation location using method fromread_l2bufr_mod.f90
-                       !-Get corrected tilt angle
+
+                       !-Get corrected tilt angle @ 715
                        celev=celev0
                        selev=selev0
                        celev=a43*celev0/(a43+h)
                        selev=(thisrange*thisrange+h*h+two*a43*h)/(two*thisrange*(a43+h))
+                       !corrected_tilt=atan2(selev,celev)*rad2deg
+                       !thistilt=corrected_tilt
+                       !thistiltr=thistilt*deg2rad   
                        gamma=half*thisrange*(celev0+celev)
-                       !-Get earth lat lon of ob
+                       gamma=thisrange
+
+                       !-Get earth lat lon of superob @ 729
                        rad_per_meter=one/rearth
                        rlonloc=rad_per_meter*gamma*cos(thisazimuthr)
                        rlatloc=rad_per_meter*gamma*sin(thisazimuthr)
                        call invtllv(rlonloc,rlatloc,rlon0,clat0,slat0,rlonglob,rlatglob)
-
-                       !--Determine the x,y (grid relative location) of the radar location.
-                       radar_location=.false.
-                       if(radar_location) then
-                          radar_lat=dflat(irid) !lat/lons stored as deg.
-                          radar_lon=dflon(irid)
-                          if(radar_lon>=r360) radar_lon=radar_lon-r360 !fix if needed.
-                          if(radar_lon<zero) radar_lon=radar_lon+r360
-                          radar_x=radar_lon
-                          radar_y=radar_lat
-                          call grdcrd1(radar_y,rlats*rad2deg,nlat,-1) !lats are in descending order
-                          call grdcrd1(radar_x,rlons*rad2deg,nlon, 1)
-                          radar_xa=int(radar_x)
-                          radar_xb=int(radar_x)+2
-                          radar_ya=int(radar_y)
-                          radar_yb=int(radar_y)+2
-                          !call tintrp2a_single_level_sliced(ges_z(radar_xm1:radar_xp1,radar_ym1:radar_yp1),&
-                          !                            zsges,radar_x-int(radar_x)+2,radar_y-int(radar_y)+2)
-                          radar_location=.false. ! turn off get radar x/y until next radar is processed.
-                       end if
-
                        thislat=rlatglob*rad2deg
                        thislon=rlonglob*rad2deg
+
                        if(thislon>=r360) thislon=thislon-r360
                        if(thislon<zero) thislon=thislon+r360
                        dlat=thislat
@@ -619,28 +657,66 @@ program drwsim
                        !--Find grid relative location of the ob. !!call tll2xy(thislon,thislat,dlon,dlat)
                        call grdcrd1(dlat,rlats*rad2deg,nlat,-1) !lats are in descending order
                        call grdcrd1(dlon,rlons*rad2deg,nlon, 1)
+                       !--Determine the x,y (grid relative location) of the radar location.
+                       !radar_location=.false.
+                       !if(radar_location) then
+                       !   radar_lat=dflat(irid) !lat/lons stored as deg.
+                       !   radar_lon=dflon(irid)
+                       !   if(radar_lon>=r360) radar_lon=radar_lon-r360 !fix if needed.
+                       !   if(radar_lon<zero) radar_lon=radar_lon+r360
+                       !   radar_x=radar_lon
+                       !   radar_y=radar_lat
+                       !   call grdcrd1(radar_y,rlats*rad2deg,nlat,-1) !lats are in descending order
+                       !   call grdcrd1(radar_x,rlons*rad2deg,nlon, 1)
+                       !   radar_xa=int(radar_x)
+                       !   radar_xb=int(radar_x)+2
+                       !   radar_ya=int(radar_y)
+                       !   radar_yb=int(radar_y)+2
+                       !   !call tintrp2a_single_level_sliced(ges_z(radar_xm1:radar_xp1,radar_ym1:radar_yp1),&
+                       !   !                            zsges,radar_x-int(radar_x)+2,radar_y-int(radar_y)+2)
+                       !   radar_location=.false. ! turn off get radar x/y until next radar is processed.
+                       !end if
+
+! read_l2bufr_mod.f90 @ 740 subroutine radar_bufr_read_all
+                       !--Get corrected azimuth
+                       !clat1=cos(rlatglob)
+                       !caz0=cos(thisazimuthr)
+                       !saz0=sin(thisazimuthr)
+                       !cdlon=cos(rlonglob-rlon0)
+                       !sdlon=sin(rlonglob-rlon0)
+                       !caz1=clat0*caz0/clat1
+                       !saz1=saz0*cdlon-caz0*sdlon*slat0
+                       !corrected_azimuth=atan2(saz1,caz1)*rad2deg
+                       !delazmmax=max(min(abs(corrected_azimuth-thisazimuth-r720),&
+                       !                  abs(corrected_azimuth-thisazimuth-r360),&
+                       !                  abs(corrected_azimuth-thisazimuth     ),&
+                       !                  abs(corrected_azimuth-thisazimuth+r360),&
+                       !                  abs(corrected_azimuth-thisazimuth+r720)),delazmmax)
+                       !thisazimuth=corrected_azimuth
+                       !thisazimuthr=thisazimuth*deg2rad
 
                        !--Interpolate surface height to grid relative ob location (dlon,dlat). 
-                       dlonm1=int(dlon)
-                       dlonp1=int(dlon)+2
-                       dlatm1=int(dlat)
-                       dlatp1=int(dlat)+2
+                       dlonm1=floor(dlon)-1
+                       dlonp1=floor(dlon)+1
+                       dlatm1=floor(dlat)-1
+                       dlatp1=floor(dlat)+1
                        zsges=0.0_r_kind
                        prsltmp=0.0_r_kind
                        hges=0.0_r_kind
 
                        ! surface height (zsges): ges_z(nlon,nlat) => zsges
+                       ! setuprw.f90 @ 359
                        call tintrp2a_single_level_sliced(ges_z(dlonm1:dlonp1,dlatm1:dlatp1),&
-                                                   zsges,dlon-int(dlon)+2,dlat-int(dlat)+2)
+                                                   zsges,dlon-floor(dlon)+2,dlat-floor(dlat)+2)
 
                        ! ln(pressure at mid layer): ges_lnprsl(nlon,nlat,nsig) => prsltmp(nsig)
-                       call tintrp2a_sliced(ges_lnprsl(dlonm1:dlonp1,dlatm1:dlatp1,:),&
-                                                   prsltmp(:),dlon-int(dlon)+2,dlat-int(dlat)+2,nsig)
+                       !call tintrp2a_sliced(ges_lnprsl(dlonm1:dlonp1,dlatm1:dlatp1,:),&
+                       !                            prsltmp(:),dlon-int(dlon)+2,dlat-int(dlat)+2,nsig)
 
                        ! geopotential height at mid layers: geop_hgtl(nlon,nlat,nsig) => hges(nsig)
                        call tintrp2a_sliced(geop_hgtl(dlonm1:dlonp1,dlatm1:dlatp1,:),&
-                                                   hges(:),dlon-int(dlon)+2,dlat-int(dlat)+2,nsig)
-
+                                                   hges(:),dlon-floor(dlon)+2,dlat-floor(dlat)+2,nsig)
+                      
                        !--Remove terrain height from ob absolute height and reject if below ground.
                        if(zsges>=dpres) then
                          !write(6,*) 'zsges =',zsges,'is greater than dpres',dpres,'. Rejecting ob.'
@@ -649,17 +725,19 @@ program drwsim
                        dpres=dpres-zsges
 
 !**********************************CONVERT GEOP HEIGHT TO GEOM HEIGHT****!
-                       sin2  = sin(thislat)*sin(thislat)
+                       sin2  = sin(thislat*deg2rad)*sin(thislat*deg2rad)
                        termg = grav_equator * ((one+somigliana*sin2)/sqrt(one-eccentricity*eccentricity*sin2))
                        termr = semi_major_axis /(one + flattening + grav_ratio - two*flattening*sin2)
                        termrg = (termg/grav)*termr
                        do k=1,nsig
                           zges(k) = (termr*hges(k)) / (termrg-hges(k))  ! eq (23)
                        end do
+                        
                     !  Convert observation height (in dpres) from meters to grid relative units.
                     !  Save the observation height in zob for later use.
                        zob = dpres
                        call grdcrd1(dpres,zges,nsig,1) ! get grid coordinates of dpres from zges
+                             
 !**********************************CONVERT GEOP HEIGHT TO GEOM HEIGHT****!
 
                        !--Interpolate guess dbz to observation location - cycle if below threshold.
@@ -675,8 +753,22 @@ program drwsim
                           sinazm  = sin(thisazimuthr)! sin(azimuth angle)                       
                           costilt = cos(thistiltr)   ! cos(tilt angle)
                           sintilt = sin(thistiltr)   ! sin(tilt angle)
+                          cosazm_costilt = cosazm*costilt
+                          sinazm_costilt = sinazm*costilt
                           !-------------WIND FORWARD MODEL-----------------------------------------!
-                          drwpol(itilt,iazm,igate) = ugesin*cosazm*costilt +vgesin*sinazm*costilt +wgesin*sintilt 
+                          drwpol(itilt,iazm,igate) = ugesin*cosazm_costilt +vgesin*sinazm_costilt +wgesin*sintilt
+                          !round to nearest 10th since GSI does this
+                          !automatically and I don't know why or how
+                          drwpol(itilt,iazm,igate) = nint(drwpol(itilt,iazm,igate)*10.0_r_kind)/10.0_r_kind
+                          if(diagprint .and. diagverbose >= 1 .and. drwpol(itilt,iazm,igate) /= -999) then
+                             if(drwpol(itilt,iazm,igate) < mindrwpol) then
+                                mindrwpol=drwpol(itilt,iazm,igate)
+                             end if
+                             if(drwpol(itilt,iazm,igate) > maxdrwpol) then
+                                maxdrwpol=drwpol(itilt,iazm,igate)
+                             end if
+                          end if 
+
                           ndata=ndata+1
                        end if dbzCheck
                     end if ifinside
@@ -684,7 +776,8 @@ program drwsim
               end do loopOVERazimuths
            end do loopOVERtilts
 
-           if(diagprint .and. diagverbose >= 1) write(6,*) "min/max drw: ",minval(drwpol),maxval(drwpol)
+           !if(diagprint .and. diagverbose >= 1) write(6,*) "min/max drw: ",minval(drwpol),maxval(drwpol)
+           if(diagprint .and. diagverbose >= 1) write(6,*) "min/max drw: ",mindrwpol,maxdrwpol
 
 
            !-------------BUFFERIZE--------------------------------------------------!
@@ -693,7 +786,8 @@ program drwsim
            ! file hence this is contained within loopOVERtime.
            !
            write(6,*)"Writing bufr file for ",trim(dfid(irid))
-           hdstr='SSTN CLON CLAT SELV ANEL YEAR MNTH DAYS HOUR MINU QCRW ANAZ'
+           !hdstr='SSTN CLON CLAT SELV ANEL YEAR MNTH DAYS HOUR MINU QCRW ANAZ'
+           hdstr='SSTN CLON CLAT HSMSL HSALG ANEL YEAR MNTH DAYS HOUR MINU SECO QCRW ANAZ'
            obstr='DIST125M DMVR DVSW'                     !NL2RW--level 2 radial wind.
            open(41,file='l2rwbufr.table.csv')        
            read(41,'(a10)') cdummy !read 1st line which is just a header.
@@ -719,19 +813,21 @@ program drwsim
            hdr(2) = dflon(irid)      !CLON - LONGITUDE (COARSE ACCURACY)
            hdr(3) = dflat(irid)      !CLAT - LATITUDE (COARSE ACCURACY)
            hdr(4) = dfheight(irid)   !SELV - HEIGHT OF STATION
-          !hdr(5) - tilt loop below.
-           hdr(6) = iadate(1)        !YEAR - YEAR
-           hdr(7) = iadate(2)        !MNTH - MONTH
-           hdr(8) = iadate(3)        !DAYS - DAY
-           hdr(9) = iadate(4)        !HOUR - HOUR 
-           hdr(10)= 00               !MINU - MINUTE
-           hdr(11)= 1                !QCRW - QUALITY MARK FOR WINDS ALONG RADIAL LINE
-          !hdr(12)- azm loop below.
+           hdr(5) = 00 
+          !hdr(6) - tilt loop below.
+           hdr(7) = iadate(1)        !YEAR - YEAR
+           hdr(8) = iadate(2)        !MNTH - MONTH
+           hdr(9) = iadate(3)        !DAYS - DAY
+           hdr(10) = iadate(4)        !HOUR - HOUR 
+           hdr(11)= 00               !MINU - MINUTE
+           hdr(12)= 00               !SECO - SECONDS
+           hdr(13)= 1                !QCRW - QUALITY MARK FOR WINDS ALONG RADIAL LINE
+          !hdr(14)- azm loop below.
            !/gpfs/hps/nco/ops/com/rap/para/rap.20180504 or
            !/NCEPPROD/hpssprod/runhistory/rh2018/201805/20180503
            bufrtilt: do itiltbufr=1,nelv
               intdate=iadate(1)*1000000 + iadate(2)*10000 + iadate(3)*100 + iadate(4) ! int(yyyymmddhh)
-              hdr(5) = tilts(itiltbufr) 
+              hdr(6) = tilts(itiltbufr) 
 
               if(.not.bufrisopen) then !open a new message for each station ID 
                  write(6,*) "intdate",intdate
@@ -758,14 +854,14 @@ program drwsim
                  if(iazmbufr90< zero) iazmbufr90=iazmbufr90+r360
                  allocate(obs(3,numgates))
                  obs=-999.0_r_kind ! Initialize as missing values
-                 hdr(12)=float(iazmbufr90)
+                 hdr(14)=float(iazmbufr90)
                  bufrgate: do igatebufr=1,numgates
                     obs(1,igatebufr) = igatebufr !DISTANCE (FROM ANTENNA TO GATE CENTER) IN UNITS OF 250M
                     obs(2,igatebufr) = drwpol(itiltbufr,iazmbufr90,igatebufr) !DOPPLER MEAN RADIAL VELOC 
                     obs(3,igatebufr) = 1.0_r_kind                       !DOPPLER VELOCITY SPECTRAL WIDTH
                  end do bufrgate
                  ! encode radial velocity
-                 call ufbint(10,hdr,12,1,iret,trim(hdstr))
+                 call ufbint(10,hdr,14,1,iret,trim(hdstr))
                  call ufbint(10,obs, 3,numgates,iret,trim(obstr))
                  call writsb(10)
                  deallocate(obs)

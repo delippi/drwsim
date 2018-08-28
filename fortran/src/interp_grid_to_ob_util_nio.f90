@@ -178,32 +178,21 @@ subroutine tintrp3(f,gout,dxin,dyin,dzin)
   do i=1,n
      ix1=int(dx(i))
      iy1=int(dy(i))
-     
-     iz=int(dz(i))
-     
+     iz=int(dz(i)); iz=max(1,min(iz,nsig))  
      ix1=max(1,min(ix1,nlon)) !nlat))
-     iz=max(1,min(iz,nsig))  
      delx=dx(i)-float(ix1)
      dely=dy(i)-float(iy1)
      delz=dz(i)-float(iz)
      delx=max(zero,min(delx,one)); delz=max(zero,min(delz,one))
-     ix=ix1-istart+2_i_kind
-     iy=iy1-jstart+2_i_kind
+     ix=ix1
+     iy=iy1
      
-     if(iy<1) then
-        iy1=iy1+nlat !nlon
-        iy=iy1-jstart+2_i_kind
-     end if
-     if(iy>lon1+1) then
-        iy1=iy1-nlat !nlon
-        iy=iy1-jstart+2_i_kind
-     end if
      ixp=ix+1; iyp=iy+1
      
      izp=min(iz+1,nsig)
-     if(ix1==nlon) then !nlat) then
-        ixp=ix
-     end if
+!     if(ix1==nlon) then !nlat) then
+!        ixp=ix
+!     end if
 
 
      delxp=one-delx; delyp=one-dely
@@ -407,15 +396,16 @@ subroutine tintrp2a_sliced(fin,gout,dxin,dyin,nlevs)
      ix=ix1
      iy=iy1
      ixp=ix+1; iyp=iy+1
-     delxp=one-delx; delyp=one-dely
-     if(ix1==nlon) then !nlat) then
-        ixp=ix
-     end if
-     
+     !delxp=one-delx; delyp=one-dely
+     !if(ix1==nlon) then !nlat) then
+     !   ixp=ix
+     !end if
      delxp=one-delx; delyp=one-dely
      do k=1,nlevs
-        g(k,i)=(f(ix,iy,k)*delxp*delyp+f(ixp,iy,k)*delx*delyp &
-              +  f(ix,iyp,k)*delxp*dely+f(ixp,iyp,k)*delx*dely) !No time interpolation done so the second half of this has been removed from the original routine
+        g(k,i)=(f(ix,iy,k)  *delxp*delyp &
+               +f(ixp,iy,k) *delx *delyp &
+               +f(ix,iyp,k) *delxp*dely &
+               +f(ixp,iyp,k)*delx *dely) !No time interpolation done so the second half of this has been removed from the original routine
 
  
      end do ! end loop over vertical levs
