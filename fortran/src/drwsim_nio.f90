@@ -27,6 +27,7 @@ program drwsim
   integer(i_kind)     :: mindat
 
   ! Declare local parameters
+  real(r_kind),parameter :: PI          = 3.141592653589793238462
   real(r_kind),parameter :: four_thirds = 4.0_r_kind / 3.0_r_kind
   real(r_kind),parameter :: r8          = 8.0_r_kind
   real(r_kind),parameter :: r360        = 360.0_r_kind
@@ -44,6 +45,11 @@ program drwsim
   character(2) :: mn
   character(10):: cdate
   
+  real(r_kind) :: oberr,temp1,temp2,clock
+!  real(r_kind) :: mean,stdev,var,temp
+!  integer(i_kind) :: it,n,itt
+!  real(r_kind),allocatable :: arr(:)
+  integer(i_kind),dimension(1) :: seed
   real(r_kind) :: cosazm
   real(r_kind) :: sinazm
   real(r_kind) :: costilt
@@ -83,6 +89,7 @@ program drwsim
   integer(i_kind) :: minobrange=20000_i_kind   ! Range (m) *outside* of which
   real(r_kind)    :: mintilt=0.0_r_kind        ! Only use tilt(elevation) angles (deg) >= this number 
   real(r_kind)    :: maxtilt=5.5_r_kind        ! Do no use tilt(elevation) angles (deg) <= this number
+  real(i_kind)    :: sigma=2.0_r_kind          ! observational error standard deviation 
   integer(i_kind) :: ithin=4_i_kind            ! Gates to skip for ob thinning (must be >=1)
   character(4)    :: staid='KOUN'              ! default station ID to use
   real(r_kind)    :: mindbz=-999_r_kind        ! minimum dbz value needed at a location to create a drw
@@ -94,6 +101,7 @@ program drwsim
   integer(i_kind) :: ntime=1_i_kind            ! number of times from nc file
   integer(i_kind) :: nelv=1_i_kind             ! number of elvation tilts
   logical         :: use_dbz=.true.            ! check for dbz at obs location?
+  logical         :: gen_ob_err=.true.         ! logical for generating observation errors 
   !----------------------------------------------!
 
   !---------NETCDF/NEMSIO VARS---------!
@@ -194,6 +202,8 @@ program drwsim
   character(len=180)  :: radarcsv
   character(len=180)  :: nesteddatadbz
   character(len=180)  :: filename
+  character(len=180)  :: namelist_atmfxxx
+  character(len=180)  :: fcsthr
 
   !-------------HEIGHT OF INTERFACE VARS--------------!
   real(r_kind),parameter :: thousand = 1000.0_r_kind
@@ -204,7 +214,8 @@ program drwsim
 
 
   namelist/drw/datatype,ntime,staid,ithin,mintilt,maxtilt,maxobrange,minobrange,&
-               azimuths,use_dbz,mindbz,gatespc,diagprint,diagverbose,radarcsv,vcpid
+               azimuths,use_dbz,mindbz,gatespc,diagprint,diagverbose,radarcsv,vcpid,&
+               gen_ob_err,sigma
   namelist/nc/datapath,nesteddata3d,nesteddata2d,nestedgrid,ak_bk,nesteddatadbz
   namelist/nio/datapath,filename
      
@@ -220,11 +231,44 @@ program drwsim
   diagprint=.false.
   diagverbose=0
 
+  !-----RANDOM NUMBER GENERATOR
+!  mean=0.0_r_kind
+!  oberr=0.0_r_kind
+!  sigma=2
+!  do it=1,100000
+!     temp=0_r_kind
+!     temp1=0_r_kind
+!     temp2=0_r_kind
+!     call cpu_time(clock)
+!     seed(1)=int(clock*500000)**2
+!     call random_seed(put=seed)
+!     call random_number(temp1)
+!     call cpu_time(clock)
+!     seed(1)=int(clock*600000)**2
+!     call random_seed(put=seed)
+!     call random_number(temp2)
+!     temp = sigma*sqrt(-2*log(temp1))*sin(2*PI*temp2)
+!     mean=mean+temp
+!     var=var + (temp-0.0_r_kind)**2 !mean is zero
+!  enddo
+!  mean=mean/100000.0_r_kind
+!  stdev=sqrt(var/100000.0_r_kind)
+!  write(6,*) "mean=",mean,stdev
+!  stop
+
   !----READ NAMELIST----
-  open(11,file='namelist')
+  call get_command_argument(1,fcsthr)
+  2000 format(a13,a3)
+  write(namelist_atmfxxx,2000) "namelist.atmf",trim(fcsthr)
+  namelist_atmfxxx=trim(namelist_atmfxxx)
+  open(11,file=namelist_atmfxxx)
   read(11,drw)
   if(datatype == 'NEMSIO') read(11,nio)
   !----READ NAMELIST----
+
+
+
+
 
   !----CREATE VOLUME COVERAGE PATTERN (VCP)----start 
   !----SIMPLIFICATION NOTES:
@@ -411,7 +455,7 @@ program drwsim
 
         ! dbz
         if(use_dbz) then !even if this is false, dbz will be initialized to 0 everywhere.
-           call nemsio_readrecv(gfile,'','mid layer',isig,dbz1d,iret=iret)
+           call nemsio_readrecv(gfile,'refl','mid layer',isig,dbz1d,iret=iret)
            ges_dbz(:,:,isig,itime)=reshape(dbz1d(:),(/size(work,1),size(work,2)/))
         endif
 
@@ -757,6 +801,21 @@ program drwsim
                           sinazm_costilt = sinazm*costilt
                           !-------------WIND FORWARD MODEL-----------------------------------------!
                           drwpol(itilt,iazm,igate) = ugesin*cosazm_costilt +vgesin*sinazm_costilt +wgesin*sintilt
+                          !-------------ADD OB ERR-------------------------------------------------!
+                          if(gen_ob_err) then
+                             oberr=0.0_r_kind
+                             call cpu_time(clock)
+                             seed(1)=int(clock*500000)**2
+                             call random_seed(put=seed)
+                             call random_number(temp1)
+                             call cpu_time(clock)
+                             seed(1)=int(clock*600000)**2
+                             call random_seed(put=seed)
+                             call random_number(temp2)
+                             oberr = sigma*sqrt(-2*log(temp1))*sin(2*PI*temp2)
+                             drwpol(itilt,iazm,igate) = drwpol(itilt,iazm,igate) + oberr
+                          endif
+
                           !round to nearest 10th since GSI does this
                           !automatically and I don't know why or how
                           drwpol(itilt,iazm,igate) = nint(drwpol(itilt,iazm,igate)*10.0_r_kind)/10.0_r_kind

@@ -24,9 +24,9 @@ ln -sf ../fix/l2rwbufr.table.csv .
 ln -sf ../fix/l2rwbufr.table .
 
 
-FHMAX_GFS=24 #end hour
-FHMIN_GFS=0   #start hour
-FHOUT_GFS=1   #increment hour by
+FHMAX_GFS=72 #end hour
+FHMIN_GFS=72   #start hour
+FHOUT_GFS=3   #increment hour by
 fcsthr=$FHMIN_GFS
 typeset -Z3 fcsthr
 
@@ -51,6 +51,6 @@ while [[ $fcsthr -le $FHMAX_GFS ]]; do
    sed -i "s/@fcsthr@/${fcsthr}/g"                        setup_atmf${fcsthr}.ksh
    work=`pwd`
    sed -i "s#@work@#${work}#g"                            setup_atmf${fcsthr}.ksh
-   qsub ./setup_atmf${fcsthr}.ksh
+   ksh ./setup_atmf${fcsthr}.ksh
    (( fcsthr=fcsthr+${FHOUT_GFS} ))
 done

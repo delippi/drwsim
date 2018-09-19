@@ -1,13 +1,9 @@
 &drw
 datatype='NEMSIO', !NEMSIO or NETCDF
-!iadate(1)=2018,    !yyyy
-!iadate(2)=05,      !mm
-!iadate(3)=03,      !dd
-!iadate(4)=00,      !hh (utc)
 
 ntime=1,           ! number of times in nc file
-staid='KFDR',
-ithin=4,          ! Gate thinning frequency for RW obs (must be >=1).
+staid='KBMX',
+ithin=1,          ! Gate thinning frequency for RW obs (must be >=1).
                    ! 250-m * ithin = new gate spacing. (e.g., ithin=20 -> 5-km) 
 
 mintilt=0.5,       ! Only use tilt angles >= mintilt [degrees]
@@ -15,9 +11,11 @@ maxtilt=20.0,      ! Only use tilt angles <= maxtilt [degrees]
 maxobrange=100000, ! maximum distance from radar for observation creation [meters]
 minobrange=0,      ! minimum distance from radar for observation creation [meters]
 azimuths=360.,     ! number of azms to create over a 360-deg circle.
-use_dbz=.true.,   ! use simulated dbz to determine where to simulate radial winds
-mindbz=-999.0,    ! minimum dbz threshold. set to -999 if you want radar winds everywhere.
-gatespc=250.,     ! level1 radial resolution [meters]
+use_dbz=.true.,    ! use simulated dbz to determine where to simulate radial winds
+mindbz=-15.0,      ! minimum dbz threshold. set to -999 if you want radar winds everywhere.
+gatespc=250.,      ! level1 radial resolution [meters]
+gen_ob_err=.true., ! logical for generating observation error
+sigma=2.,          ! observation error standard deviation
 
 diagprint=.true.,
 diagverbose=1,
@@ -28,16 +26,15 @@ radarcsv='radar_sim_dev.csv',
 !vcpid=11,12,21,31,32,35,80,90,121,211,212,215,221,999
 !vcpid=215,
 !vcpid=211,
-!vcpid=212,
+vcpid=212,
 !vcpid=221,
 !vcpid=999,
-vcpid=998,
+!vcpid=998,
 /
 
 &NIO
-datapath='/scratch4/NCEPDEV/meso/save/Donald.E.Lippi/PhD-globalOSSE/obssim/fortran/src/'
-!filename='gfs.t00z.atmf012.nemsio', !3072x1536x64
-filename='gfs.t00z.atmges.nemsio', !1536x768x64
+datapath='/scratch4/NCEPDEV/stmp3/Donald.E.Lippi/fv3gfs_dl2rw/@PDY@@CYC@/@EXP@/@CDUMP@.@PDY@/@CYC@/'
+filename='@filename@'
 /
 
 
