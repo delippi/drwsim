@@ -6,7 +6,7 @@ def main():
     fill_between=False    # True for filling between 0.5 and 20 degree tilts
     fill_between_vals=[0.5,5,20]
     both_directions=False # True for showing radar coverage to the left and right of station.
-    proportional=False   # True for km x km plot, otherwise km x kft plot
+    proportional=True   # True for km x km plot, otherwise km x kft plot
     two=2.; r8=8.; rearth=6370000. #Constants
     deg2rad=3.14149265/180.00000000; m2ft=3.28084; m2km=0.001; ft2kft=0.001 # Conversion factors
     range_max=100000.
@@ -15,12 +15,14 @@ def main():
     title_fontsize=19.; xy_axis_fontsize=16.
     if(proportional): # Makes an 8x8 plot with axes units km x km
        if(fill_between): tilts=np.array(fill_between_vals)
-       else: tilts=np.array([0,1,2,3,4,5,6,7,8,9,10,12,14,16,18,20])
-       ymax=50.; line_label_fontsize=9.; fig = plt.figure(figsize=(8,8))
+       else: tilts=np.array([0,0.5,0.9,1.3,1.8,2.4,3.1,4.0,5.1,6.4,8.0,10.0,12.5,15.6,19.5])
+       #else: tilts=np.array([0,1,2,3,4,5,6,7,8,9,10,12,14,16,18,20])
+       ymax=40; line_label_fontsize=9.; fig = plt.figure(figsize=(20,12))
        plt.gca().set_aspect('equal',adjustable='box')
     else: # Makes a 12x8 plot with axes km x kft
        if(fill_between): tilts=np.array(fill_between_vals)
-       else: tilts=np.array([0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,6,7,8,9,10,12,14,16,18,20])
+       else: tilts=np.array([0,0.5,0.9,1.3,1.8,2.4,3.1,4.0,5.1,6.4,8.0,10.0,12.5,15.6,19.5])
+       #else: tilts=np.array([0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,6,7,8,9,10,12,14,16,18,20])
        ymax=70.; line_label_fontsize=12.; fig = plt.figure(figsize=(12,8))
     rads=tilts*deg2rad
     thishgt=np.zeros(shape=(len(tilts),len(ranges))) # Initialized values to 0
@@ -37,12 +39,14 @@ def main():
             epsh=(thisrange*thisrange-ha*ha)/(r8*rearth)
             h=ha-epsh
             thishgt[i,j]=h
+            if(thisrange == 20000 and tilt == 0.5*deg2rad):
+               print thisrange,thishgt[i,j]
             j=j+1
     for t in range(len(tilts)):
         if(proportional): x=ranges*m2km; y=thishgt[t,:]*m2km; yunits='km'; svfigstr='kmkm'
         else: x=ranges*m2km; y=thishgt[t,:]*m2ft*ft2kft; yunits='kft'; svfigstr='kmkft'
         label=str(tilts[t])+'$^\circ$'
-        if(tilts[t]>=5.0):
+        if(tilts[t]>=20.0):
            label=str(int(tilts[t]))+'$^\circ$'
         #plt.plot(x,y,color=c)
         plt.plot(x,y)

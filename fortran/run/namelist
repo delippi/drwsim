@@ -2,7 +2,7 @@
 datatype='NEMSIO', !NEMSIO or NETCDF
 
 ntime=1,           ! number of times in nc file
-staid='KBMX',
+staid='all',
 ithin=1,          ! Gate thinning frequency for RW obs (must be >=1).
                    ! 250-m * ithin = new gate spacing. (e.g., ithin=20 -> 5-km) 
 
@@ -12,8 +12,9 @@ maxobrange=100000, ! maximum distance from radar for observation creation [meter
 minobrange=0,      ! minimum distance from radar for observation creation [meters]
 azimuths=360.,     ! number of azms to create over a 360-deg circle.
 use_dbz=.true.,    ! use simulated dbz to determine where to simulate radial winds
-mindbz=-15.0,      ! minimum dbz threshold. set to -999 if you want radar winds everywhere.
+mindbz=-5.0,      ! minimum dbz threshold. set to -999 if you want radar winds everywhere.
 gatespc=250.,      ! level1 radial resolution [meters]
+
 gen_ob_err=.true., ! logical for generating observation error
 sigma=2.,          ! observation error standard deviation
 

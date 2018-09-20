@@ -144,6 +144,7 @@
 | DIST125M | 006210 | DISTANCE (FROM ANTENNA TO GATE CENTER) IN UNITS OF 125M  |
 | SELV     | 007001 | HEIGHT OF STATION                                        |
 | HEIT     | 007007 | HEIGHT OF RADIAL WIND SUPEROB                            |
+| FLVLST   | 007010 | FLIGHT LEVEL                                             |
 | HSMSL    | 007030 | HEIGHT OF STATION GROUND ABOVE MSL                       |
 | HSALG    | 007032 | HEIGHT OF ANTENNA ABOVE GROUND                           |
 | HREF     | 021001 | HORIZONTAL REFLECTIVITY                                  |
@@ -336,7 +337,7 @@
 | NC006063 | 201000  202000  ANAZ  ANEL  QCRF  (NL2RF)  VOID  SCID  VOCP       |
 |          |                                                                   |
 | NC006070 | 208009  ACID  208000  ACRN  208006  STMID  208000  PTID  YYMMDD   |
-| NC006070 | HHMMSS  LTLONC  HSMSL  ANAZ  ANEL  (NP3RW)                        |
+| NC006070 | HHMMSS  LTLONC  FLVLST  ANAZ  ANEL  (NP3RW)                       |
 |          |                                                                   |
 | NC006080 | YYMMDD  HHMMSS  208003  SSTN  208000  LTLONC  HSMSL  RSRD  202127 |
 | NC006080 | 201122  HSALG  201000  202000  ANAZ  ANEL  PRFR  PWID  BEAMW      |
@@ -583,6 +584,7 @@
 | DIST125M |    0 |           0 |  12 | EIGHTHS OF A KM          |-------------|
 | SELV     |    0 |        -400 |  15 | METERS                   |-------------|
 | HEIT     |    0 |       -1000 |  17 | METERS                   |-------------|
+| FLVLST   |    0 |       -1024 |  16 | METERS                   |-------------|
 | HSMSL    |    1 |       -4000 |  17 | METERS                   |-------------|
 | HSALG    |    2 |           0 |  16 | METERS                   |-------------|
 | HREF     |    0 |         -64 |   7 | DECIBELS                 |-------------|

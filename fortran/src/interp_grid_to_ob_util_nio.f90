@@ -12,10 +12,10 @@ module interp_util
 !  integer(i_kind),parameter :: nlon=1728_i_kind	
 !  integer(i_kind),parameter :: nlat=1440_i_kind
 !  integer(i_kind),parameter :: nsig=63_i_kind  
-!  integer(i_kind),parameter :: nlon=3072_i_kind
-!  integer(i_kind),parameter :: nlat=1536_i_kind
-  integer(i_kind),parameter :: nlon=1536_i_kind
-  integer(i_kind),parameter :: nlat=768_i_kind
+  integer(i_kind),parameter :: nlon=3072_i_kind
+  integer(i_kind),parameter :: nlat=1536_i_kind
+!  integer(i_kind),parameter :: nlon=1536_i_kind
+!  integer(i_kind),parameter :: nlat=768_i_kind
   integer(i_kind),parameter :: nsig=64_i_kind  
   !integer(i_kind),parameter :: ntime=1_i_kind  
   integer(i_kind) :: nxtilde,nytilde

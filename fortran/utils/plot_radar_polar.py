@@ -37,9 +37,12 @@ def main():
    #OBS_FILE='../run/2017080712_fv3.t12z.drw.bufr'
    #date=2017080712      # date and time of the observations                    #
    #OBS_FILE='../run/2017101500_fhr06_fv3.t00z.drw.bufr'
-   OBS_FILE='../run/2017101500_fv3.t00z.drw.bufr'
-   date=2017101500      # date and time of the observations                    #
-   STAID='KGRK'         # station id you want to plot.                         #
+   write_stations=False
+   STAID='KMHX'         # station id you want to plot.                         #
+   date=2018091100     # date and time of the observations                    #
+   #OBS_FILE='../run/2018050306_fv3.t06z_drw.bufr'
+   OBS_FILE='../run/2018091400_fv3.t00z_drw.bufr'
+   #OBS_FILE='../run/rap.t05z.nexrad.tm00.bufr_d'
                         # tilt angle you want to plot.                         #
    #anel_list=[0.5]#,1,1.5,2,2.5,3,3.5,4,4.5,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
    vcpid=212
@@ -70,10 +73,12 @@ def main():
         #        vcpid=int(subprocess.check_output(("cut","-f","1","-d",","),stdin=ps2.stdout).strip("\n"))
         #        break
 
+
    if(vcpid==212): anel_list=[0.5,0.9,1.3,1.8,2.4,3.1,4.0,5.1,6.4,8.0,10.0,12.5,15.6,19.5]
-   if(vcpid==998): anel_list=[0.5]
+   if(vcpid==998): anel_list=[1.0]
 
    gatespc=250.*ithin
+   #gatespc=125. #250.*ithin
 ##### END OF USER DEFINED SETTINGS ##############################################
    for anel0 in anel_list:
     tic = time.clock()
@@ -84,7 +89,9 @@ def main():
        message_type='NC00'+str(int(str(date)[-2:])+6040) #Ex: NC006052 if for 12z and NC006053 is for 13z.
 
     # Mnemonics for getting data from the bufr file.
-    hdstr= 'SSTN CLON CLAT SELV ANEL YEAR MNTH DAYS HOUR MINU QCRW ANAZ' #PRFR' # MGPT'
+    #hdstr= 'SSTN CLON CLAT SELV ANEL YEAR MNTH DAYS HOUR MINU QCRW ANAZ' #PRFR' # MGPT'
+    #         0   1    2     3     4     5    6   7     8   9    10   11   12   13
+    hdstr= 'SSTN CLON CLAT HSMSL HSALG ANEL YEAR MNTH DAYS HOUR MINU SECO QCRW ANAZ' #PRFR' # MGPT'
     obstr= 'DIST125M DMVR DVSW' # PRFR'                     #NL2RW--level 2 radial wind.
     obstr2='STDM SUPLON SUPLAT HEIT RWND RWAZ RSTD' #RWSOB--radial wind super ob.
 
@@ -93,6 +100,10 @@ def main():
     #OBS_FILE=sys.argv[1]; message_type=sys.argv[2]; date=sys.argv[3]; STAID=sys.argv[4]
 
     del_anel=0.25
+    if(write_stations):
+       station_list_file="station_list.txt"
+       slist = open(station_list_file,"w")
+       previous=""
      
     #2. READ PREPBUFR FILE.
     b='false' # used for breaking the loop.
@@ -105,33 +116,34 @@ def main():
                 hdr = bufr.read_subset(hdstr).squeeze() # parse hdstr='SSTN CLON ... etc.'
                 station_id = hdr[0].tostring() # convert SSTN to string.
                 station_id=station_id.strip()  # remove white space from SSTN.
+                if(write_stations):
+                   present=station_id.strip()
+                   if(previous != present):
+                      previous=present
+                      slist.write(present+"\n")
                 if(station_id == STAID): # comes from input. used for picking a single SSTN.
-                    if(hdr[4] >= anel0-del_anel and hdr[4] <= anel0+del_anel): # read an elevation angle.
+                    print(station_id.strip(),hdr[5])
+                    if(hdr[5] >= anel0-del_anel and hdr[5] <= anel0+del_anel): # read an elevation angle.
                         obs = bufr.read_subset(obstr).squeeze() # parse obstr='DIST125M DMVR DVSW'
                         ###print(bufr.msg_counter,'SSTN,CLON,CLAT,ANAL,ANAZ : ' \
                         ###      ,station_id,hdr[1],hdr[2],hdr[4],hdr[11])
                         i=i+1  #number of observations counter.
                         sids.append(station_id) # station ids
-                        #lons.append(360+hdr[1]) # longitudes
-                        #lats.append(hdr[2]) # latitudes
                         l2rw.append(obs[1]) # level 2 radial winds
-                        anel.append(hdr[4]) # elevation angles
-                        anaz.append(hdr[11]) # azimuthal angles
-                        #PRF.append(obs[2]) #Pulse repitition frequency
-                        #dist125m.append(obs[0]) # distances in units of 125 m
-                        #radii.append(obs[0]*125) #distances in units of 1 m
-                        #radii.append(obs[0]) #distances in units of 1 m
+                        anel.append(hdr[5]) # elevation angles
+                        anaz.append(hdr[13]) # azimuthal angles
                         radii.append(obs[0]*gatespc) #distances in units of 1 m
-                        ymdhm.append(int(hdr[9]))
-                        #print(ymdhm)
-                        if(anaz[-1] >= 360.0): # we would like to break the loop now.
+                        ymdhm.append(int(hdr[10]))
+                        if(len(anaz) >= 360): # we would like to break the loop now.
                             b='true'
+                if(b == 'true'): break # stop reading after all anaz's read.
         if(b == 'true'): break # stop reading after all anaz's read.
     bufr.close()
     try:
        MM=str(ymdhm[-1])
     except IndexError: 
        exit("You have an empty bufr file...")
+    if(write_stations): slist.close
     print(np.min(anel),np.max(anel))
     print(np.min(ymdhm),np.max(ymdhm))
     toc = time.clock() # check how long reading the data in took.
@@ -160,16 +172,21 @@ def main():
     widgetstring=STAID+' '+str(anel0)
     widgets=[widgetstring+': [',Percentage(),' ',Timer(),'] ', Bar(),' (', ETA(), ') ']
     bar = ProgressBar(widgets=widgets)
+    count=0
+    print(len(anaz))
     for i in bar(xrange(0,360,int(360./azimuths))): # for every azimuth angle ...
         #print(i,'/',len(anaz))
         for j in xrange(len(radii[i])): # ... loop over every observation distance from radar ...
             for k in xrange(len(r[i])): # ... and loop over an equally 125m spaced array ...
                 if(radii[i][j] == r[i][k]): # ... if the observation dist = dist125m ...
                     rw[i][k]=l2rw[i][j] # ... assign the value of the observation to that index.
+                    if(rw[i][j]>-999):
+                      count=count+1
                     #PRF_new[i][k]=PRF[i][j]
                     break # speeds things up by about 50-60%.
     rw[np.isnan(rw)] = -999 # the masked values are converted to nan. set nan to -999.
     print("max value is: "+str(np.max(rw))) # check that it is not nan.
+    print("count: "+str(count))
 
     #6. FINISH MAKING THE POLAR PLOT WITH THE FILLED IN VALUES.
     if(False):

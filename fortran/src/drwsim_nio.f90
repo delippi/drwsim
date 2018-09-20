@@ -46,16 +46,12 @@ program drwsim
   character(10):: cdate
   
   real(r_kind) :: oberr,temp1,temp2,clock
-!  real(r_kind) :: mean,stdev,var,temp
-!  integer(i_kind) :: it,n,itt
-!  real(r_kind),allocatable :: arr(:)
   integer(i_kind),dimension(1) :: seed
   real(r_kind) :: cosazm
   real(r_kind) :: sinazm
   real(r_kind) :: costilt
   real(r_kind) :: sintilt
   real(r_kind) :: cosazm_costilt,sinazm_costilt
-!  real(r_kind), dimension(nsig) :: ugesprofile,vgesprofile,wgesprofile
   real(r_kind) :: ugesin
   real(r_kind) :: vgesin
   real(r_kind) :: wgesin
@@ -67,11 +63,6 @@ program drwsim
   real(r_kind) :: celev,selev,gamma,thisazimuthr,thisazimuth,rlon0,rlat0,stahgt, &
                   clat0,slat0,dlat,dlon,thislon,thislat, &
                   rlonloc,rlatloc,rlonglob,rlatglob,rad_per_meter!, &
-                  !radar_x,radar_y,radar_lon,radar_lat
-!  real(r_kind) :: clat1,caz0,saz0,cdlon,sdlon,caz1,saz1,&
-!                  corrected_azimuth,delazmmax,corrected_tilt
-!  real(r_kind) :: addelev,zsges0,beamdepth,elevtop,elevbot,kbeamtop,kbeambot,kbeamdiffmax,kbeamdiffmin
-  !real(r_kind),allocatable :: delz(:,:),height(:,:),delp(:,:)
   real(r_kind),allocatable :: drwpol(:,:,:) !tilt,azm,gate
   real(r_kind)             :: mindrwpol,maxdrwpol
   integer(i_kind) :: irid,itilt,iazm,igate,itime,isig
@@ -138,7 +129,6 @@ program drwsim
   real(r_kind),  allocatable,dimension(:,:,:,:) :: ges_q
   real(r_kind),  allocatable,dimension(:,:    ) :: ges_z
   real(r_kind),  allocatable,dimension(:,:    ) :: work
-!  real(r_kind),  allocatable,dimension(:,:,:,:) :: zges 
   real(r_kind),  allocatable,dimension(:      ) :: zges 
   real(r_kind),              dimension(nsig) :: hges 
   real(r_kind),              dimension(nsig) :: prsltmp 
@@ -151,7 +141,7 @@ program drwsim
   real(r_kind),              dimension(nlon*nlat) :: sp1d
   real(r_kind),              dimension(nlon*nlat) :: t1d
   real(r_kind),              dimension(nlon*nlat) :: q1d
-  real(r_kind) :: dlonm1,dlonp1,dlatm1,dlatp1!,radar_xa,radar_ya,radar_xb,radar_yb
+  real(r_kind) :: dlonm1,dlonp1,dlatm1,dlatp1
   integer(i_kind) :: bufrcount
 
 
@@ -231,44 +221,15 @@ program drwsim
   diagprint=.false.
   diagverbose=0
 
-  !-----RANDOM NUMBER GENERATOR
-!  mean=0.0_r_kind
-!  oberr=0.0_r_kind
-!  sigma=2
-!  do it=1,100000
-!     temp=0_r_kind
-!     temp1=0_r_kind
-!     temp2=0_r_kind
-!     call cpu_time(clock)
-!     seed(1)=int(clock*500000)**2
-!     call random_seed(put=seed)
-!     call random_number(temp1)
-!     call cpu_time(clock)
-!     seed(1)=int(clock*600000)**2
-!     call random_seed(put=seed)
-!     call random_number(temp2)
-!     temp = sigma*sqrt(-2*log(temp1))*sin(2*PI*temp2)
-!     mean=mean+temp
-!     var=var + (temp-0.0_r_kind)**2 !mean is zero
-!  enddo
-!  mean=mean/100000.0_r_kind
-!  stdev=sqrt(var/100000.0_r_kind)
-!  write(6,*) "mean=",mean,stdev
-!  stop
-
   !----READ NAMELIST----
   call get_command_argument(1,fcsthr)
-  2000 format(a13,a3)
-  write(namelist_atmfxxx,2000) "namelist.atmf",trim(fcsthr)
+  2000 format(a22,a3)
+  write(namelist_atmfxxx,2000) "./simnml/namelist.atmf",trim(fcsthr)
   namelist_atmfxxx=trim(namelist_atmfxxx)
   open(11,file=namelist_atmfxxx)
   read(11,drw)
   if(datatype == 'NEMSIO') read(11,nio)
   !----READ NAMELIST----
-
-
-
-
 
   !----CREATE VOLUME COVERAGE PATTERN (VCP)----start 
   !----SIMPLIFICATION NOTES:
@@ -439,7 +400,6 @@ program drwsim
 
      write(6,*) 'Reading u,v,w,q,t,dbz level by level'
      do isig=1,nsig
-!        write(6,*) 'level = ',isig
 
         ! u
         call nemsio_readrecv(gfile,'ugrd','mid layer',isig,u1d,iret=iret)
@@ -638,9 +598,7 @@ program drwsim
               thistiltr=thistilt*deg2rad
               celev0=cos(thistiltr)
               selev0=sin(thistiltr)
-              loopOVERazimuths: do iazm=azmspc,360,azmspc
-              !loopOVERazimuths: do iazm=225,225,azmspc !360=>90;  90=>0; 180=>270;  270=>180
-              !loopOVERazimuths: do iazm=90,270,azmspc !360=>90;  90=>0; 180=>270;  270=>180
+              loopOVERazimuths: do iazm=azmspc,360,azmspc !360=>90;  90=>0; 180=>270;  270=>180
                  1000 format(a5,1x,i4,i2.2,i2.2,i2.2,&
                           3x,a6,1x,a4,&
                           3x,a5,1x,i2,a2,i2,1x,a1,f4.1,a1,f4.1,a1,&
@@ -658,7 +616,6 @@ program drwsim
                  if(thisazimuth<zero) thisazimuth=thisazimuth+r360
                  thisazimuthr=thisazimuth*deg2rad
                  loopOVERgates: do igate=1,numgates     
-                 !loopOVERgates: do igate=390,390
                     inside=.false. ! is our ob location inside the bounds? preset to false, then check.
                     if(igate*gatespc >= minobrange .and. igate*gatespc <= maxobrange) inside=.true.
                     ifinside: if(inside) then
@@ -674,7 +631,6 @@ program drwsim
                        h=ha-epsh
                        thishgt=stahgt+h
                        dpres=thishgt !store the absolute ob height (m) in dpres.                   
-
                        !-Get corrected tilt angle @ 715
                        celev=celev0
                        selev=selev0
@@ -701,25 +657,6 @@ program drwsim
                        !--Find grid relative location of the ob. !!call tll2xy(thislon,thislat,dlon,dlat)
                        call grdcrd1(dlat,rlats*rad2deg,nlat,-1) !lats are in descending order
                        call grdcrd1(dlon,rlons*rad2deg,nlon, 1)
-                       !--Determine the x,y (grid relative location) of the radar location.
-                       !radar_location=.false.
-                       !if(radar_location) then
-                       !   radar_lat=dflat(irid) !lat/lons stored as deg.
-                       !   radar_lon=dflon(irid)
-                       !   if(radar_lon>=r360) radar_lon=radar_lon-r360 !fix if needed.
-                       !   if(radar_lon<zero) radar_lon=radar_lon+r360
-                       !   radar_x=radar_lon
-                       !   radar_y=radar_lat
-                       !   call grdcrd1(radar_y,rlats*rad2deg,nlat,-1) !lats are in descending order
-                       !   call grdcrd1(radar_x,rlons*rad2deg,nlon, 1)
-                       !   radar_xa=int(radar_x)
-                       !   radar_xb=int(radar_x)+2
-                       !   radar_ya=int(radar_y)
-                       !   radar_yb=int(radar_y)+2
-                       !   !call tintrp2a_single_level_sliced(ges_z(radar_xm1:radar_xp1,radar_ym1:radar_yp1),&
-                       !   !                            zsges,radar_x-int(radar_x)+2,radar_y-int(radar_y)+2)
-                       !   radar_location=.false. ! turn off get radar x/y until next radar is processed.
-                       !end if
 
 ! read_l2bufr_mod.f90 @ 740 subroutine radar_bufr_read_all
                        !--Get corrected azimuth
@@ -752,10 +689,6 @@ program drwsim
                        ! setuprw.f90 @ 359
                        call tintrp2a_single_level_sliced(ges_z(dlonm1:dlonp1,dlatm1:dlatp1),&
                                                    zsges,dlon-floor(dlon)+2,dlat-floor(dlat)+2)
-
-                       ! ln(pressure at mid layer): ges_lnprsl(nlon,nlat,nsig) => prsltmp(nsig)
-                       !call tintrp2a_sliced(ges_lnprsl(dlonm1:dlonp1,dlatm1:dlatp1,:),&
-                       !                            prsltmp(:),dlon-int(dlon)+2,dlat-int(dlat)+2,nsig)
 
                        ! geopotential height at mid layers: geop_hgtl(nlon,nlat,nsig) => hges(nsig)
                        call tintrp2a_sliced(geop_hgtl(dlonm1:dlonp1,dlatm1:dlatp1,:),&
@@ -816,8 +749,7 @@ program drwsim
                              drwpol(itilt,iazm,igate) = drwpol(itilt,iazm,igate) + oberr
                           endif
 
-                          !round to nearest 10th since GSI does this
-                          !automatically and I don't know why or how
+                          !round to nearest 10th since this is automatically done when writing to bufr.
                           drwpol(itilt,iazm,igate) = nint(drwpol(itilt,iazm,igate)*10.0_r_kind)/10.0_r_kind
                           if(diagprint .and. diagverbose >= 1 .and. drwpol(itilt,iazm,igate) /= -999) then
                              if(drwpol(itilt,iazm,igate) < mindrwpol) then
@@ -835,7 +767,6 @@ program drwsim
               end do loopOVERazimuths
            end do loopOVERtilts
 
-           !if(diagprint .and. diagverbose >= 1) write(6,*) "min/max drw: ",minval(drwpol),maxval(drwpol)
            if(diagprint .and. diagverbose >= 1) write(6,*) "min/max drw: ",mindrwpol,maxdrwpol
 
 
@@ -845,7 +776,6 @@ program drwsim
            ! file hence this is contained within loopOVERtime.
            !
            write(6,*)"Writing bufr file for ",trim(dfid(irid))
-           !hdstr='SSTN CLON CLAT SELV ANEL YEAR MNTH DAYS HOUR MINU QCRW ANAZ'
            hdstr='SSTN CLON CLAT HSMSL HSALG ANEL YEAR MNTH DAYS HOUR MINU SECO QCRW ANAZ'
            obstr='DIST125M DMVR DVSW'                     !NL2RW--level 2 radial wind.
            open(41,file='l2rwbufr.table.csv')        
@@ -882,8 +812,6 @@ program drwsim
            hdr(12)= 00               !SECO - SECONDS
            hdr(13)= 1                !QCRW - QUALITY MARK FOR WINDS ALONG RADIAL LINE
           !hdr(14)- azm loop below.
-           !/gpfs/hps/nco/ops/com/rap/para/rap.20180504 or
-           !/NCEPPROD/hpssprod/runhistory/rh2018/201805/20180503
            bufrtilt: do itiltbufr=1,nelv
               intdate=iadate(1)*1000000 + iadate(2)*10000 + iadate(3)*100 + iadate(4) ! int(yyyymmddhh)
               hdr(6) = tilts(itiltbufr) 
@@ -891,7 +819,7 @@ program drwsim
               if(.not.bufrisopen) then !open a new message for each station ID 
                  write(6,*) "intdate",intdate
                  write(6,*) "cdate",cdate
-                 bufrfilename=trim(cdate)//'_fv3.t'//trim(hh)//'z_drw.bufr'
+                 bufrfilename='./simbufr/'//trim(cdate)//'_fv3.t'//trim(hh)//'z_drw.bufr'
                  write(6,*) "bufr file name is:",bufrfilename
                  open(unit=11,file='l2rwbufr.table',status='old',action='read',form='formatted')
 
