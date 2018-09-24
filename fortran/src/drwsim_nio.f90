@@ -45,7 +45,9 @@ program drwsim
   character(2) :: mn
   character(10):: cdate
   
-  real(r_kind) :: oberr,temp1,temp2,clock
+  real(r_kind) :: oberr,temp,temp1,temp2,clock,mu,mu2,it,itt,var_err,std_err,sum_err,var
+  integer(i_kind) :: n
+  real(r_kind),allocatable :: ob_err(:)
   integer(i_kind),dimension(1) :: seed
   real(r_kind) :: cosazm
   real(r_kind) :: sinazm
@@ -80,7 +82,8 @@ program drwsim
   integer(i_kind) :: minobrange=20000_i_kind   ! Range (m) *outside* of which
   real(r_kind)    :: mintilt=0.0_r_kind        ! Only use tilt(elevation) angles (deg) >= this number 
   real(r_kind)    :: maxtilt=5.5_r_kind        ! Do no use tilt(elevation) angles (deg) <= this number
-  real(i_kind)    :: sigma=2.0_r_kind          ! observational error standard deviation 
+  real(i_kind)    :: sigma_err=2.0_r_kind      ! observational error standard deviation 
+  real(i_kind)    :: mean_err=2.0_r_kind       ! observational error mean 
   integer(i_kind) :: ithin=4_i_kind            ! Gates to skip for ob thinning (must be >=1)
   character(4)    :: staid='KOUN'              ! default station ID to use
   real(r_kind)    :: mindbz=-999_r_kind        ! minimum dbz value needed at a location to create a drw
@@ -93,6 +96,9 @@ program drwsim
   integer(i_kind) :: nelv=1_i_kind             ! number of elvation tilts
   logical         :: use_dbz=.true.            ! check for dbz at obs location?
   logical         :: gen_ob_err=.true.         ! logical for generating observation errors 
+  logical         :: check_err=.false.         ! check the simulated error mean and standard dev.
+  logical         :: rand_err=.false.          ! .false. for reproducible results. errors are still "random" 
+  logical         :: test_random_number_gen=.false. ! test the random number generator for simulated ob err. 
   !----------------------------------------------!
 
   !---------NETCDF/NEMSIO VARS---------!
@@ -204,9 +210,12 @@ program drwsim
 
 
   namelist/drw/datatype,ntime,staid,ithin,mintilt,maxtilt,maxobrange,minobrange,&
-               azimuths,use_dbz,mindbz,gatespc,diagprint,diagverbose,radarcsv,vcpid,&
-               gen_ob_err,sigma
+               azimuths,use_dbz,mindbz,gatespc,diagprint,diagverbose,radarcsv,vcpid
+
+  namelist/simoberr/gen_ob_err,sigma_err,mean_err,check_err,rand_err,test_random_number_gen
+
   namelist/nc/datapath,nesteddata3d,nesteddata2d,nestedgrid,ak_bk,nesteddatadbz
+
   namelist/nio/datapath,filename
      
 !--------------------------------------------------------------------------------------!
@@ -228,9 +237,54 @@ program drwsim
   namelist_atmfxxx=trim(namelist_atmfxxx)
   open(11,file=namelist_atmfxxx)
   read(11,drw)
+  read(11,simoberr)
   if(datatype == 'NEMSIO') read(11,nio)
+  if(datatype == 'NETCDF') read(11,nc )
   !----READ NAMELIST----
 
+  !----RANDOM NUMBER GENERATOR
+  if(test_random_number_gen) then
+     oberr=0.0_r_kind
+     sum_err=0.0_r_kind
+     var_err=0.0_r_kind
+     std_err=0.0_r_kind
+     mu=0.0_r_kind
+     itt=144000
+     do it=1,itt
+        temp=0_r_kind
+        temp1=0_r_kind
+        temp2=0_r_kind
+        if(rand_err) then
+           call cpu_time(clock)
+           seed(1)=int(clock*500000)**2
+           call random_seed(put=seed)
+           call random_number(temp1)
+           call cpu_time(clock)
+           seed(1)=int(clock*600000)**2
+           call random_seed(put=seed)
+           call random_number(temp2)
+        else
+           seed(1)=(abs(cos(it))* (10**8) )
+           if(itt <= 100) write(6,*) seed 
+           call random_seed(put=seed)
+           call random_number(temp1)
+           seed(1)=(abs(sin(it))* (10**6) )
+           if(itt <= 100) write(6,*) seed 
+           call random_seed(put=seed)
+           call random_number(temp2)
+        end if
+        temp = sigma_err * sqrt( -2*log(temp1) ) * sin(2*PI*temp2) + mean_err
+        if(itt <= 100) write(6,*) temp1,temp2,temp
+        mu = mu + temp
+        var = var + (temp - mean_err)**2
+     enddo
+     mu = mu/itt
+     mu2=sqrt(var/(itt-1))
+     write(6,*) "mean and stdev=",mu,mu2
+     write(6,*) "mean and stdev=",mean_err,sigma_err
+     stop 
+   end if ! end test of random number generator
+ 
   !----CREATE VOLUME COVERAGE PATTERN (VCP)----start 
   !----SIMPLIFICATION NOTES:
   !    Most precipitation vcps have multiple scans at each layer.
@@ -392,7 +446,7 @@ program drwsim
      ges_u(:,:,:,:)=0.0_r_kind ! initialize
      ges_v(:,:,:,:)=0.0_r_kind ! initialize
      ges_w(:,:,:,:)=0.0_r_kind ! initialize
-     ges_dbz(:,:,:,:)=0.0_r_kind ! initialize
+     ges_dbz(:,:,:,:)=-999.0_r_kind ! initialize
      ges_q(:,:,:,:)=0.0_r_kind !initialize
      ges_t(:,:,:,:)=0.0_r_kind !initialize
      ges_tv(:,:,:,:)=0.0_r_kind !initialize
@@ -414,7 +468,7 @@ program drwsim
         ges_w(:,:,isig,itime)=reshape(w1d(:),(/size(work,1),size(work,2)/))
 
         ! dbz
-        if(use_dbz) then !even if this is false, dbz will be initialized to 0 everywhere.
+        if(use_dbz) then !even if this is false, dbz will be initialized to missing everywhere 
            call nemsio_readrecv(gfile,'refl','mid layer',isig,dbz1d,iret=iret)
            ges_dbz(:,:,isig,itime)=reshape(dbz1d(:),(/size(work,1),size(work,2)/))
         endif
@@ -576,9 +630,11 @@ program drwsim
   bufrcount=0
   loopOVERtime: do itime=1,ntime
      if(itime > 1) call newdate(iadate,1,iadate) ! don't increment the first time.
+     if(check_err) allocate(ob_err(nelv*360*numgates*numradars))
      loopOVERradars: do irid=1,numradars 
         allocate(drwpol(nelv,360,numgates))
         drwpol=-999.0_r_kind !Initialize/Reset the drw polar field
+        mu=0.0_r_kind
         mindrwpol=huge_single
         maxdrwpol=-huge_single
         radar_location=.true. ! logical to only compute radar x,y once later in loop - preset to true.
@@ -719,7 +775,7 @@ program drwsim
 
                        !--Interpolate guess dbz to observation location - cycle if below threshold.
                        call tintrp3(ges_dbz(:,:,:,itime),dbzgesin,dlon,dlat,dpres)
-                       dbzCheck: if(dbzgesin >= mindbz) then
+                       dbzCheck: if(dbzgesin >= mindbz .or..not. use_dbz) then
                           !--Interpolate guess wind to observation location                                  
                           call tintrp3(ges_u(:,:,:,itime),ugesin,dlon,dlat,dpres)
                           call tintrp3(ges_v(:,:,:,itime),vgesin,dlon,dlat,dpres)
@@ -734,23 +790,42 @@ program drwsim
                           sinazm_costilt = sinazm*costilt
                           !-------------WIND FORWARD MODEL-----------------------------------------!
                           drwpol(itilt,iazm,igate) = ugesin*cosazm_costilt +vgesin*sinazm_costilt +wgesin*sintilt
+                          ndata=ndata+1
                           !-------------ADD OB ERR-------------------------------------------------!
                           if(gen_ob_err) then
-                             oberr=0.0_r_kind
-                             call cpu_time(clock)
-                             seed(1)=int(clock*500000)**2
-                             call random_seed(put=seed)
-                             call random_number(temp1)
-                             call cpu_time(clock)
-                             seed(1)=int(clock*600000)**2
-                             call random_seed(put=seed)
-                             call random_number(temp2)
-                             oberr = sigma*sqrt(-2*log(temp1))*sin(2*PI*temp2)
+                             temp1=0_r_kind
+                             temp2=0_r_kind
+                             oberr=0_r_kind
+                             if(rand_err) then
+                                call cpu_time(clock)
+                                seed(1)=int(clock*500000)**2
+                                call random_seed(put=seed)
+                                call random_number(temp1)
+                                call cpu_time(clock)
+                                seed(1)=int(clock*600000)**2
+                                call random_seed(put=seed)
+                                call random_number(temp2)
+                             else
+                                 seed(1)=(abs(cos(real(ndata)))* (10**8) )
+                                 call random_seed(put=seed)
+                                 call random_number(temp1)
+                                 seed(1)=(abs(sin(real(ndata)))* (10**6) )
+                                 call random_seed(put=seed)
+                                 call random_number(temp2)
+                             end if
+                             oberr = sigma_err * sqrt( -2*log(temp1) ) * sin( 2*PI*temp2 ) + mean_err 
                              drwpol(itilt,iazm,igate) = drwpol(itilt,iazm,igate) + oberr
-                          endif
+
+                             if(check_err) then
+                                ob_err(ndata) = oberr
+                                sum_err = sum_err + ob_err(ndata)
+                             end if
+
+                          end if !generate ob error
 
                           !round to nearest 10th since this is automatically done when writing to bufr.
                           drwpol(itilt,iazm,igate) = nint(drwpol(itilt,iazm,igate)*10.0_r_kind)/10.0_r_kind
+
                           if(diagprint .and. diagverbose >= 1 .and. drwpol(itilt,iazm,igate) /= -999) then
                              if(drwpol(itilt,iazm,igate) < mindrwpol) then
                                 mindrwpol=drwpol(itilt,iazm,igate)
@@ -760,12 +835,25 @@ program drwsim
                              end if
                           end if 
 
-                          ndata=ndata+1
                        end if dbzCheck
                     end if ifinside
                  end do loopOVERgates
               end do loopOVERazimuths
            end do loopOVERtilts
+
+           if(check_err) then
+             mu = sum_err / ndata
+             do n=1,ndata
+                var_err = var_err + ( ob_err(n) - mu )**2
+             end do
+             var_err = var_err / (ndata-1)
+             std_err = sqrt( var_err )
+             
+             write(6,*) 'mean and stadard deviation of oberr=',mu,std_err,ndata,var_err
+             write(6,*) 'what the mean and std dev should be=',mean_err,sigma_err 
+             deallocate(ob_err)
+             stop
+           end if
 
            if(diagprint .and. diagverbose >= 1) write(6,*) "min/max drw: ",mindrwpol,maxdrwpol
 
