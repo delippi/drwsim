@@ -2,7 +2,7 @@
 datatype='NEMSIO', !NEMSIO or NETCDF
 
 ntime=1,           ! number of times in nc file
-staid='KGRK',
+staid='all',
 ithin=1,           ! Gate thinning frequency for RW obs (must be >=1).
                    ! 250-m * ithin = new gate spacing. (e.g., ithin=20 -> 5-km) 
 
