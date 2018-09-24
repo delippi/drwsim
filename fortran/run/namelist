@@ -2,7 +2,7 @@
 datatype='NEMSIO', !NEMSIO or NETCDF
 
 ntime=1,           ! number of times in nc file
-staid='all',
+staid='KGRK',
 ithin=1,           ! Gate thinning frequency for RW obs (must be >=1).
                    ! 250-m * ithin = new gate spacing. (e.g., ithin=20 -> 5-km) 
 
@@ -34,13 +34,13 @@ vcpid=212,
 
 
 &simoberr
-gen_ob_err=.false., ! logical for generating observation error
+gen_ob_err=.true.,  ! logical for generating observation error
 rand_err=.false.,   ! false for reproducible results. errors are still "random"
 mean_err=0.,        ! prescribed observation error mean
 sigma_err=2.,       ! prescribed observation error standard deviation
 
 test_random_number_gen=.false., ! test the random number gerator for simulated ob error.
-check_err=.true.,  ! check the simulated error mean and standard deviation.
+check_err=.false.,  ! check the simulated error mean and standard deviation.
 /
 
 
