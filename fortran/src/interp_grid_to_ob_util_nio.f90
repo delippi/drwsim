@@ -65,6 +65,8 @@ subroutine gridmod_extract
 
 ! Set up constants
     
+       if(allocated(glon_an)) deallocate(glon_an)
+       if(allocated(glat_an)) deallocate(glat_an)
        allocate(glon_an(nlon,nlat)) ! unlike rest of gsi these arrays are lon,lat
        allocate(glat_an(nlon,nlat))
 
@@ -769,6 +771,12 @@ end subroutine tintrp2a_single_level_notworking
 !      glons,glats are lons, lats of input grid points of dimension nlon,nlat
   call get_xytilde_domain(nlon,nlat,glons,glats,nxtilde,nytilde, &
                    xbar_min,xbar_max,ybar_min,ybar_max)
+  if(allocated(i0_tilde)) deallocate(i0_tilde)
+  if(allocated(j0_tilde)) deallocate(j0_tilde)
+  if(allocated(ip_tilde)) deallocate(ip_tilde)
+  if(allocated(jp_tilde)) deallocate(jp_tilde)
+  if(allocated(xtilde0)) deallocate(xtilde0)
+  if(allocated(ytilde0)) deallocate(ytilde0)
   allocate(i0_tilde(nxtilde,nytilde),j0_tilde(nxtilde,nytilde))
   allocate(ip_tilde(nxtilde,nytilde),jp_tilde(nxtilde,nytilde))
   allocate(xtilde0(nlon,nlat),ytilde0(nlon,nlat))
@@ -816,6 +824,12 @@ end subroutine tintrp2a_single_level_notworking
 !   new, more accurate and robust computation of cos_beta_ref and sin_beta_ref which is independent
 !     of sign_pole and works for any orientation of grid on sphere (only restriction for now is that
 !     x-y coordinate of analysis grid is right handed).
+  if(allocated(clata)) deallocate(clata)
+  if(allocated(slata)) deallocate(slata)
+  if(allocated(clona)) deallocate(clona)
+  if(allocated(slona)) deallocate(slona)
+  if(allocated(cos_beta_ref)) deallocate(cos_beta_ref)
+  if(allocated(sin_beta_ref)) deallocate(sin_beta_ref)
   allocate(clata(nlon,nlat),slata(nlon,nlat),clona(nlon,nlat),slona(nlon,nlat))
   allocate(cos_beta_ref(nlon,nlat),sin_beta_ref(nlon,nlat))
   do j=1,nlat

@@ -78,6 +78,7 @@ program drwsim
 
   !---------DEFAULT SETTINGS---------!
   character(6)    :: datatype = 'NEMSIO'       ! Input data format for reading (NEMSIO or *NETCDF) *doesn't work
+  logical         :: l4denvar = .true.         ! simulate obs based on the needs of 3d/4d file needs
   integer(i_kind) :: maxobrange=250000_i_kind  ! Range (m) *within* which to use observations 
   integer(i_kind) :: minobrange=20000_i_kind   ! Range (m) *outside* of which
   real(r_kind)    :: mintilt=0.0_r_kind        ! Only use tilt(elevation) angles (deg) >= this number 
@@ -102,14 +103,14 @@ program drwsim
   !----------------------------------------------!
 
   !---------NETCDF/NEMSIO VARS---------!
-  real(r_kind),allocatable  ::     ges_u(:,:,:,:) ! (nlon,nlat,nsig,ntime)
-  real(r_kind),allocatable  ::     ges_v(:,:,:,:) ! (nlon,nlat,nsig,ntime)
-  real(r_kind),allocatable  ::     ges_w(:,:,:,:) ! (nlon,nlat,nsig,ntime)
-  real(r_kind),allocatable  ::   ges_dbz(:,:,:,:) ! (nlon,nlat,nsig,ntime)
+  real(r_kind),allocatable  ::     ges_u(:,:,:) ! (nlon,nlat,nsig)
+  real(r_kind),allocatable  ::     ges_v(:,:,:) ! (nlon,nlat,nsig)
+  real(r_kind),allocatable  ::     ges_w(:,:,:) ! (nlon,nlat,nsig)
+  real(r_kind),allocatable  ::   ges_dbz(:,:,:) ! (nlon,nlat,nsig)
   !----------------------------------------------!
 
   ! ALL NEMSIO ADDITIONS HERE BEFORE SORTING 
-  type(nemsio_gfile) :: gfile
+  type(nemsio_gfile),allocatable,dimension(:) :: gfile
   real(r_kind) :: kap1,kapr
   integer(i_kind) :: nlonsin,nlatsin,nlevsin,idvc
   integer(i_kind) :: idate(4)
@@ -118,27 +119,26 @@ program drwsim
   integer(i_kind) :: ilon
   integer(i_kind) :: k
   integer(i_kind) :: azmspc
-  real(r_single),allocatable,dimension(:,:,:  ) :: nems_vcoord
-  real(r_single),allocatable,dimension(:      ) :: lats
-  real(r_single),allocatable,dimension(:      ) :: lons
-  real(r_single),allocatable,dimension(:      ) :: rlats
-  real(r_single),allocatable,dimension(:      ) :: rlons
-  real(r_kind),  allocatable,dimension(:,:    ) :: ges_ps
-  real(r_kind),  allocatable,dimension(:      ) :: ak
-  real(r_kind),  allocatable,dimension(:      ) :: bk
-  real(r_kind),  allocatable,dimension(:,:,:  ) :: ges_prsi
-  real(r_kind),  allocatable,dimension(:,:,:  ) :: ges_prsl
-  real(r_kind),  allocatable,dimension(:,:,:  ) :: ges_lnprsl
-  real(r_kind),  allocatable,dimension(:,:,:  ) :: geop_hgtl
-  real(r_kind),  allocatable,dimension(:,:,:,:) :: ges_t
-  real(r_kind),  allocatable,dimension(:,:,:,:) :: ges_tv
-  real(r_kind),  allocatable,dimension(:,:,:,:) :: ges_q
-  real(r_kind),  allocatable,dimension(:,:    ) :: ges_z
-  real(r_kind),  allocatable,dimension(:,:    ) :: work
-  real(r_kind),  allocatable,dimension(:      ) :: zges 
+  real(r_single),allocatable,dimension(:,:,:) :: nems_vcoord
+  real(r_single),allocatable,dimension(:    ) :: lats
+  real(r_single),allocatable,dimension(:    ) :: lons
+  real(r_single),allocatable,dimension(:    ) :: rlats
+  real(r_single),allocatable,dimension(:    ) :: rlons
+  real(r_kind),  allocatable,dimension(:,:  ) :: ges_ps
+  real(r_kind),  allocatable,dimension(:    ) :: ak
+  real(r_kind),  allocatable,dimension(:    ) :: bk
+  real(r_kind),  allocatable,dimension(:,:,:) :: ges_prsi
+  real(r_kind),  allocatable,dimension(:,:,:) :: ges_prsl
+  real(r_kind),  allocatable,dimension(:,:,:) :: ges_lnprsl
+  real(r_kind),  allocatable,dimension(:,:,:) :: geop_hgtl
+  real(r_kind),  allocatable,dimension(:,:,:) :: ges_t
+  real(r_kind),  allocatable,dimension(:,:,:) :: ges_tv
+  real(r_kind),  allocatable,dimension(:,:,:) :: ges_q
+  real(r_kind),  allocatable,dimension(:,:  ) :: ges_z
+  real(r_kind),  allocatable,dimension(:,:  ) :: work
+  real(r_kind),  allocatable,dimension(:    ) :: zges 
   real(r_kind),              dimension(nsig) :: hges 
   real(r_kind),              dimension(nsig) :: prsltmp 
-  real(r_kind),  allocatable,dimension(:,:,:,:) :: pges
   real(r_kind),              dimension(nlon*nlat) :: u1d
   real(r_kind),              dimension(nlon*nlat) :: v1d
   real(r_kind),              dimension(nlon*nlat) :: w1d
@@ -197,7 +197,14 @@ program drwsim
   character(len=180)  :: ak_bk
   character(len=180)  :: radarcsv
   character(len=180)  :: nesteddatadbz
-  character(len=180)  :: filename
+  character(len=180)  :: filename3
+  character(len=180)  :: filename4
+  character(len=180)  :: filename5
+  character(len=180)  :: filename6
+  character(len=180)  :: filename7
+  character(len=180)  :: filename8
+  character(len=180)  :: filename9
+  character(len=180),allocatable,dimension(:)  :: filename
   character(len=180)  :: namelist_atmfxxx
   character(len=180)  :: fcsthr
 
@@ -209,14 +216,14 @@ program drwsim
   real(r_kind) cmpr, x_v, rl_hm, fact, pw, tmp_K, tmp_C, prs_sv, prs_a, ehn_fct, prs_v
 
 
-  namelist/drw/datatype,ntime,staid,ithin,mintilt,maxtilt,maxobrange,minobrange,&
+  namelist/drw/l4denvar,datatype,ntime,staid,ithin,mintilt,maxtilt,maxobrange,minobrange,&
                azimuths,use_dbz,mindbz,gatespc,diagprint,diagverbose,radarcsv,vcpid
 
   namelist/simoberr/gen_ob_err,sigma_err,mean_err,check_err,rand_err,test_random_number_gen
 
   namelist/nc/datapath,nesteddata3d,nesteddata2d,nestedgrid,ak_bk,nesteddatadbz
 
-  namelist/nio/datapath,filename
+  namelist/nio/datapath,filename3,filename4,filename5,filename6,filename7,filename8,filename9
      
 !--------------------------------------------------------------------------------------!
 !                            END OF ALL DECLARATIONS
@@ -229,6 +236,7 @@ program drwsim
   mindat=ione
   diagprint=.false.
   diagverbose=0
+  if(l4denvar) ntime=7 !set here just in case it wasn't in namelist...
 
   !----READ NAMELIST----
   call get_command_argument(1,fcsthr)
@@ -326,7 +334,16 @@ program drwsim
   gatespc=gatespc*ithin
   azmspc=360/azimuths
   numgates=int(maxobrange/gatespc) !calculate num gates based on namelist settings.
-  filename=trim(datapath) // trim(filename)
+  allocate(filename(ntime))
+  do itime=1,ntime
+     if(itime==1) filename(itime)=trim(datapath) // trim(filename3)
+     if(itime==2) filename(itime)=trim(datapath) // trim(filename4)
+     if(itime==3) filename(itime)=trim(datapath) // trim(filename5)
+     if(itime==4) filename(itime)=trim(datapath) // trim(filename6)
+     if(itime==5) filename(itime)=trim(datapath) // trim(filename7)
+     if(itime==6) filename(itime)=trim(datapath) // trim(filename8)
+     if(itime==7) filename(itime)=trim(datapath) // trim(filename9)
+  end do
 
   if(diagprint .and. diagverbose >= 1) then
      write(6,*) "----NC FILE SPECS--------"
@@ -352,7 +369,9 @@ program drwsim
      write(6,*) "maxtilt     ",maxtilt
      write(6,*) "mindbz      ",mindbz
      write(6,*) "datapath:   ",datapath
-     write(6,*) "nemsio file:  ",filename
+     do itime=1,ntime
+        write(6,*) "nemsio file(",itime,"):  ",filename(itime)
+     enddo
   end if
   if(modulo(360,azimuths) /= 0) stop "ERROR: !!! AZIMUTHS IN NAMELIST IS NOT A FACTOR OF 360-DEG. !!!"
 
@@ -406,23 +425,58 @@ program drwsim
   write(6,*) "Done: Reading Global Radar List"
 
 !------ OPEN NEMSIO FILE FOR READING -----------------------
-  if(datatype=='NEMSIO') then
-     write(6,*) 'Open and Read NEMSIO files'
-     allocate(work(nlon,nlat))
-     work    = zero
+!  if(datatype=='NEMSIO') then
+  write(6,*) 'Open and Read NEMSIO files'
+  allocate(work(nlon,nlat))
+  work    = zero
+  if(l4denvar) ntime=7
+  allocate(gfile(ntime))
 
+  !   do itime=1,ntime
+  ndata=izero
+  nradars=izero
+
+  !--Call Timer
+  call date_and_time(values=time_array_0)
+  start_time = time_array_0(5)*3600 + time_array_0(6)*60 + time_array_0(7) + time_array_0(8)*0.001
+  write(6,*) 'STARTING RADAR WIND SIMULATION:'
+
+  bufrcount=0
+  call nemsio_init(iret=iret)
+  call nemsio_open(gfile(4),filename(4),'READ',iret=iret)
+  call nemsio_getheadvar(gfile(4),'idate',idate,iret)
+  call nemsio_getheadvar(gfile(4),'nfhour',nfhour,iret)
+  call newdate(idate,nfhour,iadate)
+  call nemsio_close(gfile(4))
+  call w3ai15(iadate(1),yyyy,1,4,'')
+  call w3ai15(iadate(2),  mm,1,2,'')
+  call w3ai15(iadate(3),  dd,1,2,'')
+  call w3ai15(iadate(4),  hh,1,2,'')
+  call w3ai15(iadate(5),  mn,1,2,'')
+  cdate=trim(yyyy)//trim(mm)//trim(dd)//trim(hh)
+
+  loopOVERtime: do itime=1,ntime
      call nemsio_init(iret=iret)
-     call nemsio_open(gfile,filename,'READ',iret=iret)
-     call nemsio_getheadvar(gfile,'idate',idate,iret)
-     call nemsio_getheadvar(gfile,'nfhour',nfhour,iret)
-     call nemsio_getfilehead(gfile,iret=iret,dimx=nlonsin,dimy=nlatsin,dimz=nlevsin,idvc=idvc)
+     write(6,*) "filename(",itime,")=",filename(itime)
+     call nemsio_open(gfile(itime),filename(itime),'READ',iret=iret)
+     call nemsio_getheadvar(gfile(itime),'idate',idate,iret)
+     call nemsio_getheadvar(gfile(itime),'nfhour',nfhour,iret)
+     call nemsio_getfilehead(gfile(itime),iret=iret,dimx=nlonsin,dimy=nlatsin,dimz=nlevsin,idvc=idvc)
 
      call newdate(idate,nfhour,iadate)
+     write(6,*) 'iadate=',iadate
 
      ! rlats rlons
      write(6,*) 'Reading lat lon'
-     allocate(lats(nlon*nlat),lons(nlon*nlat),rlats(nlat),rlons(nlon))
-     call nemsio_getfilehead(gfile,iret=iret,lon=lons,lat=lats)
+     if(allocated(lats) ) deallocate(lats )
+     if(allocated(lons) ) deallocate(lons )
+     if(allocated(rlats)) deallocate(rlats)
+     if(allocated(rlons)) deallocate(rlons)
+     allocate(lats(nlon*nlat))
+     allocate(lons(nlon*nlat))
+     allocate(rlats(nlat)    )
+     allocate(rlons(nlon)    )
+     call nemsio_getfilehead(gfile(itime),iret=iret,lon=lons,lat=lats)
      do ilon=1,nlon
         rlons(ilon)=lons(ilon)*deg2rad
      end do
@@ -432,83 +486,101 @@ program drwsim
      !lats indicies 1-3072 are all the same and are 89.9
      !lons indicies 1-3072 are increase from 0 to 359.88
 
-
-
      ! read 3d fields (u,v,w,dbz)
-     itime=1
-     allocate(ges_u(nlon,nlat,nsig,ntime))
-     allocate(ges_v(nlon,nlat,nsig,ntime))
-     allocate(ges_w(nlon,nlat,nsig,ntime))
-     allocate(ges_dbz(nlon,nlat,nsig,ntime))
-     allocate(ges_t(nlon,nlat,nsig,ntime))
-     allocate(ges_tv(nlon,nlat,nsig,ntime))
-     allocate(ges_q(nlon,nlat,nsig,ntime))
-     ges_u(:,:,:,:)=0.0_r_kind ! initialize
-     ges_v(:,:,:,:)=0.0_r_kind ! initialize
-     ges_w(:,:,:,:)=0.0_r_kind ! initialize
-     ges_dbz(:,:,:,:)=-999.0_r_kind ! initialize
-     ges_q(:,:,:,:)=0.0_r_kind !initialize
-     ges_t(:,:,:,:)=0.0_r_kind !initialize
-     ges_tv(:,:,:,:)=0.0_r_kind !initialize
+     !itime=1
+     if(allocated(ges_u)   )  deallocate(ges_u  )
+     if(allocated(ges_v)   )  deallocate(ges_v  )
+     if(allocated(ges_w)   )  deallocate(ges_w  )
+     if(allocated(ges_dbz) )  deallocate(ges_dbz)
+     if(allocated(ges_t)   )  deallocate(ges_t  )
+     if(allocated(ges_tv)  )  deallocate(ges_tv )
+     if(allocated(ges_q)   )  deallocate(ges_q  )
+     allocate(ges_u(nlon,nlat,nsig)  )
+     allocate(ges_v(nlon,nlat,nsig)  )
+     allocate(ges_w(nlon,nlat,nsig)  )
+     allocate(ges_dbz(nlon,nlat,nsig))
+     allocate(ges_t(nlon,nlat,nsig)  )
+     allocate(ges_tv(nlon,nlat,nsig) )
+     allocate(ges_q(nlon,nlat,nsig)  )
+     ges_u(:,:,:)=0.0_r_kind ! initialize
+     ges_v(:,:,:)=0.0_r_kind ! initialize
+     ges_w(:,:,:)=0.0_r_kind ! initialize
+     ges_dbz(:,:,:)=-999.0_r_kind ! initialize
+     ges_q(:,:,:)=0.0_r_kind !initialize
+     ges_t(:,:,:)=0.0_r_kind !initialize
+     ges_tv(:,:,:)=0.0_r_kind !initialize
     
 
      write(6,*) 'Reading u,v,w,q,t,dbz level by level'
      do isig=1,nsig
 
         ! u
-        call nemsio_readrecv(gfile,'ugrd','mid layer',isig,u1d,iret=iret)
-        ges_u(:,:,isig,itime)=reshape(u1d(:),(/size(work,1),size(work,2)/))
+        call nemsio_readrecv(gfile(itime),'ugrd','mid layer',isig,u1d,iret=iret)
+        ges_u(:,:,isig)=reshape(u1d(:),(/size(work,1),size(work,2)/))
 
         ! v
-        call nemsio_readrecv(gfile,'vgrd','mid layer',isig,v1d,iret=iret)
-        ges_v(:,:,isig,itime)=reshape(v1d(:),(/size(work,1),size(work,2)/))
+        call nemsio_readrecv(gfile(itime),'vgrd','mid layer',isig,v1d,iret=iret)
+        ges_v(:,:,isig)=reshape(v1d(:),(/size(work,1),size(work,2)/))
 
         ! w
-        call nemsio_readrecv(gfile,'dzdt','mid layer',isig,w1d,iret=iret) !FV3=dzdt; NMMB=w_tot
-        ges_w(:,:,isig,itime)=reshape(w1d(:),(/size(work,1),size(work,2)/))
+        call nemsio_readrecv(gfile(itime),'dzdt','mid layer',isig,w1d,iret=iret) !FV3=dzdt; NMMB=w_tot
+        ges_w(:,:,isig)=reshape(w1d(:),(/size(work,1),size(work,2)/))
 
         ! dbz
         if(use_dbz) then !even if this is false, dbz will be initialized to missing everywhere 
-           call nemsio_readrecv(gfile,'refl','mid layer',isig,dbz1d,iret=iret)
-           ges_dbz(:,:,isig,itime)=reshape(dbz1d(:),(/size(work,1),size(work,2)/))
+           call nemsio_readrecv(gfile(itime),'refl','mid layer',isig,dbz1d,iret=iret)
+           ges_dbz(:,:,isig)=reshape(dbz1d(:),(/size(work,1),size(work,2)/))
         endif
 
         ! q 
-        call nemsio_readrecv(gfile,'spfh','mid layer',isig,q1d,iret=iret)
-        ges_q(:,:,isig,itime)=reshape(q1d(:),(/size(work,1),size(work,2)/))
+        call nemsio_readrecv(gfile(itime),'spfh','mid layer',isig,q1d,iret=iret)
+        ges_q(:,:,isig)=reshape(q1d(:),(/size(work,1),size(work,2)/))
 
         ! t => convert to tv later
-        call nemsio_readrecv(gfile,'tmp','mid layer',isig,t1d,iret=iret)
-        ges_t(:,:,isig,itime)=reshape(t1d(:),(/size(work,1),size(work,2)/))
+        call nemsio_readrecv(gfile(itime),'tmp','mid layer',isig,t1d,iret=iret)
+        ges_t(:,:,isig)=reshape(t1d(:),(/size(work,1),size(work,2)/))
 
      end do
 
      ! read sfc height
-     write(6,*) 'Reading surface height'
-     allocate(ges_z(nlon,nlat))
-     ges_z=0.0_r_kind ! initialize
-     call nemsio_readrecv(gfile,'hgt','sfc',1,sz1d,iret=iret)
-     ges_z(:,:)=reshape(sz1d(:),(/size(work,1),size(work,2)/))
+     if(itime==1) then ! surface height is constant at all times.
+        write(6,*) 'Reading surface height'
+        allocate(ges_z(nlon,nlat))
+        ges_z=0.0_r_kind ! initialize
+        call nemsio_readrecv(gfile(itime),'hgt','sfc',1,sz1d,iret=iret)
+        ges_z(:,:)=reshape(sz1d(:),(/size(work,1),size(work,2)/))
+     end if
 
      ! read sfc pressure
      write(6,*) 'Reading surface pressure'
+     if( allocated(ges_ps) ) deallocate(ges_ps)
      allocate(ges_ps(nlonsin,nlatsin))
      ges_ps=0.0_r_kind ! initialize
-     call nemsio_readrecv(gfile,'pres','sfc',1,sp1d,iret=iret)
+     call nemsio_readrecv(gfile(itime),'pres','sfc',1,sp1d,iret=iret)
      sp1d=0.001_r_kind*sp1d
      ges_ps(:,:)=reshape(sp1d(:),(/size(work,1),size(work,2)/))
 
      ! ak bk --> interface pressure/height calculation
      write(6,*) 'Reading ak bk'
-     allocate(nems_vcoord(nsig+1,3,2))
+     if(allocated(nems_vcoord)) deallocate(nems_vcoord)
+     if(allocated(ges_prsi)   ) deallocate(ges_prsi   )
+     if(allocated(ges_prsl)   ) deallocate(ges_prsl   )
+     if(allocated(ges_lnprsl) ) deallocate(ges_lnprsl )
+     if(allocated(ak)         ) deallocate(ak         )
+     if(allocated(bk)         ) deallocate(bk         )
+     if(allocated(zges)       ) deallocate(zges       )
+     if(allocated(geop_hgtl)  ) deallocate(geop_hgtl  )
+     allocate(nems_vcoord(nsig+1,3,2)   )
      allocate(ges_prsi(nlon,nlat,nsig+1))
-     allocate(ges_prsl(nlon,nlat,nsig),ges_lnprsl(nlon,nlat,nsig))
-     allocate(ak(nsig+1),bk(nsig+1))
-     allocate(geop_hgtl(nlon,nlat,nsig))
-     allocate(zges(nsig))
-     pges = 0.0_r_kind ! initialize
+     allocate(ges_prsl(nlon,nlat,nsig)  )
+     allocate(ges_lnprsl(nlon,nlat,nsig))
+     allocate(ak(nsig+1)                )
+     allocate(bk(nsig+1)                )
+     allocate(zges(nsig)                )
+     allocate(geop_hgtl(nlon,nlat,nsig ))
+
      zges = 0.0_r_kind ! initialize
-     call nemsio_getfilehead(gfile,iret=iret,vcoord=nems_vcoord)
+     call nemsio_getfilehead(gfile(itime),iret=iret,vcoord=nems_vcoord)
      if ( idvc == 2 ) then      ! hybrid coordinate
         ak = nems_vcoord(1:nsig+1,1,1) ! convert to mb
         bk = nems_vcoord(1:nsig+1,2,1)
@@ -537,24 +609,24 @@ program drwsim
         do j=1,nlat
            !--Compute virtual temperature from dry temp and specific humididty.
            do k=1,nsig
-              ges_tv(i,j,k,1) = ges_t(i,j,k,1) * (one + fv * (ges_q(i,j,k,1)))
+              ges_tv(i,j,k) = ges_t(i,j,k) * (one + fv * (ges_q(i,j,k)))
            enddo
         enddo
      enddo
      !-Compute geopotential heights at mid layer
-     write(6,*) "Computing geopotential height at mid layer: started"
+     write(6,*) "Computing geopotential height at mid layer",itime,"/",ntime,": started"
      rdog = rd/grav
      do j=1,nlat     !LIPPI Flipped the order of nlon/nlat
         do i=1,nlon
            k=1
-           fact     = one + fv * ges_q(i,j,k,1)
-           pw       = eps + ges_q(i,j,k,1)*( one - eps )
-           tmp_K    = ges_tv(i,j,k,1) / fact
+           fact     = one + fv * ges_q(i,j,k)
+           pw       = eps + ges_q(i,j,k)*( one - eps )
+           tmp_K    = ges_tv(i,j,k) / fact
            tmp_C    = tmp_K - t0c
            prs_sv   = exp(psv_a*tmp_K**2 + psv_b*tmp_K + psv_c + psv_d/tmp_K)  !Pvap sat, eq A1.1 (Pa)
            prs_a   = thousand * exp(half*(log(ges_prsi(i,j,k)) + log(ges_prsl(i,j,k))))     ! (Pa)
            ehn_fct = ef_alpha + ef_beta*prs_a + ef_gamma*tmp_C**2 ! enhancement factor (eq. A1.2)
-           prs_v   = ges_q(i,j,k,1) * prs_a / pw   ! vapor pressure (Pa)
+           prs_v   = ges_q(i,j,k) * prs_a / pw   ! vapor pressure (Pa)
            rl_hm   = prs_v / prs_sv    ! relative humidity
            x_v     = rl_hm * ehn_fct * prs_sv / prs_a     ! molar fraction of water vapor (eq. A1.3)
           ! Compressibility factor (eq A1.4 from Picard et al 2008)
@@ -562,19 +634,19 @@ program drwsim
                            + (cpf_b0 + cpf_b1*tmp_C)*x_v + (cpf_c0 + cpf_c1*tmp_C)*x_v**2 ) &
                            + (prs_a**2/tmp_K**2) * (cpf_d + cpf_e*x_v**2)
 
-           h        = rdog * ges_tv(i,j,k,1)
+           h        = rdog * ges_tv(i,j,k)
            dz       = h * cmpr * log(ges_prsi(i,j,k)/ges_prsl(i,j,k))
            height(k)= ges_z(i,j) + dz
 
            do k=2,nsig
-              fact     = one + fv * half * (ges_q(i,j,k-1,1)+ges_q(i,j,k,1))
-              pw       = eps + half * (ges_q(i,j,k-1,1)+ges_q(i,j,k,1))*( one - eps )
-              tmp_K    = half * (ges_tv(i,j,k-1,1)+ges_tv(i,j,k,1)) / fact
+              fact     = one + fv * half * (ges_q(i,j,k-1)+ges_q(i,j,k))
+              pw       = eps + half * (ges_q(i,j,k-1)+ges_q(i,j,k))*( one - eps )
+              tmp_K    = half * (ges_tv(i,j,k-1)+ges_tv(i,j,k)) / fact
               tmp_C    = tmp_K - t0c
               prs_sv   = exp(psv_a*tmp_K**2 + psv_b*tmp_K + psv_c + psv_d/tmp_K) !Pvap sat, eq A1.1 (Pa)
               prs_a   = thousand * exp(half*(log(ges_prsl(i,j,k-1)) + log(ges_prsl(i,j,k))))     ! (Pa)
               ehn_fct = ef_alpha + ef_beta*prs_a + ef_gamma*tmp_C**2 ! enhancement factor (eq. A1.2)
-              prs_v   = half * (ges_q(i,j,k-1,1)+ges_q(i,j,k,1)) * prs_a / pw   ! vapor pressure (Pa)
+              prs_v   = half * (ges_q(i,j,k-1)+ges_q(i,j,k)) * prs_a / pw   ! vapor pressure (Pa)
               rl_hm   = prs_v / prs_sv    ! relative humidity
               x_v     = rl_hm * ehn_fct * prs_sv / prs_a     ! molar fraction of water vapor (eq. A1.3)
              ! Compressibility factor (eq A1.4 from Picard et al 2008)
@@ -582,7 +654,7 @@ program drwsim
                               + (cpf_b0 + cpf_b1*tmp_C)*x_v + (cpf_c0 + cpf_c1*tmp_C)*x_v**2 ) &
                               + (prs_a**2/tmp_K**2) * (cpf_d + cpf_e*x_v**2)
 
-              h         = rdog * half * (ges_tv(i,j,k-1,1)+ges_tv(i,j,k,1))
+              h         = rdog * half * (ges_tv(i,j,k-1)+ges_tv(i,j,k))
               dz        = h * cmpr * log(ges_prsl(i,j,k-1)/ges_prsl(i,j,k))
               height(k) = height(k-1) + dz
            enddo
@@ -591,45 +663,32 @@ program drwsim
            enddo
         enddo
      enddo 
+
+
+     write(6,*) "Computing geopotential height at mid layer",itime,"/",ntime,": done"
+     write(6,*) idate,nfhour
+     write(6,*) 'Done: Reading NEMSIO files'
+     deallocate(lats,lons)
      deallocate(ges_prsi,ges_prsl,ges_tv,ges_t,ges_q)
 
-
-     write(6,*) "Computing geopotential height at mid layer: done"
-     deallocate(lats,lons)
-     write(6,*) idate,nfhour
-
-  write(6,*) 'Done: Reading NEMSIO files'
-  end if ! NEMSIO READ
-
-  !set up information needed to interpolate model to observation
-  !*********************************
-  call gridmod_extract
+     !set up information needed to interpolate model to observation
+     !*********************************
+     call gridmod_extract
   
-  !*********************************
+     !*********************************
 
-  if (diagprint .and. diagverbose >= 10) then
-     write(6,*)'----Model grid info diagnostic print----'
-     write(6,*)'nlon,nlat,rlambda0,pihalf,sign_pole:',nlon,nlat,rlambda0,pihalf,sign_pole
-     write(6,*)'atilde_x,atilde_y,btilde_x,btilde_y:',atilde_x,atilde_y,btilde_x,btilde_y
-     write(6,*)'rlon_min_dd,rlon_max_dd,rlat_min_dd,rlat_max_dd,nxtilde,nytilde:',&
-                rlon_min_dd,rlon_max_dd,rlat_min_dd,rlat_max_dd,nxtilde,nytilde
-     write(6,*)'Max/min i0_tilde,j0_tilde:',maxval(i0_tilde),minval(i0_tilde),maxval(j0_tilde),minval(j0_tilde)
-     write(6,*)'Max/min ip_tilde,jp_tilde:',maxval(ip_tilde),minval(ip_tilde),maxval(jp_tilde),minval(jp_tilde)
-     write(6,*)'Max/min xtilde0,ytilde0:',maxval(xtilde0),minval(xtilde0),maxval(ytilde0),minval(ytilde0)
-     write(6,*)'----End model grid info diagnostic print----'
-  end if
+     if (diagprint .and. diagverbose >= 10) then
+       write(6,*)'----Model grid info diagnostic print----'
+       write(6,*)'nlon,nlat,rlambda0,pihalf,sign_pole:',nlon,nlat,rlambda0,pihalf,sign_pole
+       write(6,*)'atilde_x,atilde_y,btilde_x,btilde_y:',atilde_x,atilde_y,btilde_x,btilde_y
+       write(6,*)'rlon_min_dd,rlon_max_dd,rlat_min_dd,rlat_max_dd,nxtilde,nytilde:',&
+                  rlon_min_dd,rlon_max_dd,rlat_min_dd,rlat_max_dd,nxtilde,nytilde
+       write(6,*)'Max/min i0_tilde,j0_tilde:',maxval(i0_tilde),minval(i0_tilde),maxval(j0_tilde),minval(j0_tilde)
+       write(6,*)'Max/min ip_tilde,jp_tilde:',maxval(ip_tilde),minval(ip_tilde),maxval(jp_tilde),minval(jp_tilde)
+       write(6,*)'Max/min xtilde0,ytilde0:',maxval(xtilde0),minval(xtilde0),maxval(ytilde0),minval(ytilde0)
+       write(6,*)'----End model grid info diagnostic print----'
+     end if
 
-  ndata=izero
-  nradars=izero
-
-  !--Call Timer
-  call date_and_time(values=time_array_0)
-  start_time = time_array_0(5)*3600 + time_array_0(6)*60 + time_array_0(7) + time_array_0(8)*0.001
-  write(6,*) 'STARTING RADAR WIND SIMULATION:'
-
-  bufrcount=0
-  loopOVERtime: do itime=1,ntime
-     if(itime > 1) call newdate(iadate,1,iadate) ! don't increment the first time.
      if(check_err) allocate(ob_err(nelv*360*numgates*numradars))
      loopOVERradars: do irid=1,numradars 
         allocate(drwpol(nelv,360,numgates))
@@ -746,7 +805,7 @@ program drwsim
                        call tintrp2a_single_level_sliced(ges_z(dlonm1:dlonp1,dlatm1:dlatp1),&
                                                    zsges,dlon-floor(dlon)+2,dlat-floor(dlat)+2)
 
-                       ! geopotential height at mid layers: geop_hgtl(nlon,nlat,nsig) => hges(nsig)
+                       ! geopotential height at mid layers: geop_hgtl(nlon,nlat,nsig,ntime) => hges(nsig)
                        call tintrp2a_sliced(geop_hgtl(dlonm1:dlonp1,dlatm1:dlatp1,:),&
                                                    hges(:),dlon-floor(dlon)+2,dlat-floor(dlat)+2,nsig)
                       
@@ -774,12 +833,12 @@ program drwsim
 !**********************************CONVERT GEOP HEIGHT TO GEOM HEIGHT****!
 
                        !--Interpolate guess dbz to observation location - cycle if below threshold.
-                       call tintrp3(ges_dbz(:,:,:,itime),dbzgesin,dlon,dlat,dpres)
+                       call tintrp3(ges_dbz(:,:,:),dbzgesin,dlon,dlat,dpres)
                        dbzCheck: if(dbzgesin >= mindbz .or..not. use_dbz) then
                           !--Interpolate guess wind to observation location                                  
-                          call tintrp3(ges_u(:,:,:,itime),ugesin,dlon,dlat,dpres)
-                          call tintrp3(ges_v(:,:,:,itime),vgesin,dlon,dlat,dpres)
-                          call tintrp3(ges_w(:,:,:,itime),wgesin,dlon,dlat,dpres)
+                          call tintrp3(ges_u(:,:,:),ugesin,dlon,dlat,dpres)
+                          call tintrp3(ges_v(:,:,:),vgesin,dlon,dlat,dpres)
+                          call tintrp3(ges_w(:,:,:),wgesin,dlon,dlat,dpres)
 
                           !--Convert guess u,v,w wind components to radial value               
                           cosazm  = cos(thisazimuthr)! cos(azimuth angle)                       
@@ -879,12 +938,12 @@ program drwsim
            close(41)
            if(diagprint .and. diagverbose >= 2) write(6,*) message_type
            write(6,*) 'iadate',iadate
-           call w3ai15(iadate(1),yyyy,1,4,'')
-           call w3ai15(iadate(2),  mm,1,2,'')
-           call w3ai15(iadate(3),  dd,1,2,'')
-           call w3ai15(iadate(4),  hh,1,2,'')
-           call w3ai15(iadate(5),  mn,1,2,'')
-           cdate=trim(yyyy)//trim(mm)//trim(dd)//trim(hh)
+           !call w3ai15(iadate(1),yyyy,1,4,'')
+           !call w3ai15(iadate(2),  mm,1,2,'')
+           !call w3ai15(iadate(3),  dd,1,2,'')
+           !call w3ai15(iadate(4),  hh,1,2,'')
+           !call w3ai15(iadate(5),  mn,1,2,'')
+           !cdate=trim(yyyy)//trim(mm)//trim(dd)//trim(hh)
            subset=trim(adjustl(message_type))
            chdr   = dfid(irid)       !SSTN - RADAR STATION IDENTIFIER -- uses same memory location as hdr(1)
            hdr(2) = dflon(irid)      !CLON - LONGITUDE (COARSE ACCURACY)
@@ -892,16 +951,16 @@ program drwsim
            hdr(4) = dfheight(irid)   !SELV - HEIGHT OF STATION
            hdr(5) = 00 
           !hdr(6) - tilt loop below.
-           hdr(7) = iadate(1)        !YEAR - YEAR
-           hdr(8) = iadate(2)        !MNTH - MONTH
-           hdr(9) = iadate(3)        !DAYS - DAY
-           hdr(10) = iadate(4)        !HOUR - HOUR 
+           hdr(7) = iadate(1)  !YEAR - YEAR
+           hdr(8) = iadate(2)  !MNTH - MONTH
+           hdr(9) = iadate(3)  !DAYS - DAY
+           hdr(10) = iadate(4) !HOUR - HOUR 
            hdr(11)= 00               !MINU - MINUTE
            hdr(12)= 00               !SECO - SECONDS
            hdr(13)= 1                !QCRW - QUALITY MARK FOR WINDS ALONG RADIAL LINE
           !hdr(14)- azm loop below.
            bufrtilt: do itiltbufr=1,nelv
-              intdate=iadate(1)*1000000 + iadate(2)*10000 + iadate(3)*100 + iadate(4) ! int(yyyymmddhh)
+              intdate=iadate(1)*1000000 + iadate(2)*10000 +iadate(3)*100 + iadate(4) ! int(yyyymmddhh)
               hdr(6) = tilts(itiltbufr) 
 
               if(.not.bufrisopen) then !open a new message for each station ID 

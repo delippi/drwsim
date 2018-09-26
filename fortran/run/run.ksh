@@ -10,7 +10,6 @@ done
 
 # Compile the simulation code.
 src=../src
-
 cd $src
 make clean
 make
@@ -27,11 +26,19 @@ ln -sf ../fix/l2rwbufr.table .
 
 
 # Create the jobs for simulating the observations now.
-FHMAX_GFS=24  #end hour
-FHMIN_GFS=0   #start hour
+FHMAX_GFS=6  #end hour
+FHMIN_GFS=6   #start hour
 FHOUT_GFS=1   #increment hour by
+FHOUT_GDAS=6 #increment for gdas analysis
 fcsthr=$FHMIN_GFS
 typeset -Z3 fcsthr
+typeset -Z3 fcsthrm3
+typeset -Z3 fcsthrm2
+typeset -Z3 fcsthrm1
+typeset -Z3 fcsthrm0
+typeset -Z3 fcsthrp1
+typeset -Z3 fcsthrp2
+typeset -Z3 fcsthrp3
 
 CDUMP="gfs"
 CYC="00"
@@ -39,10 +46,29 @@ PDY="20180911"
 EXP="NATURE-2018091100-2018091800" #This should be the NATURE RUN
 
 while [[ $fcsthr -le $FHMAX_GFS ]]; do
+   (( fcsthrm3=fcsthr - 3 ))
+   (( fcsthrm2=fcsthr - 2 ))
+   (( fcsthrm1=fcsthr - 1 ))
+   fcsthrm0=$fcsthr
+   (( fcsthrp1=fcsthr + 1 ))
+   (( fcsthrp2=fcsthr + 2 ))
+   (( fcsthrp3=fcsthr + 3 ))
    #filename="gfs.t00z.atmf${fcsthr}.nemsio" #Get filename change
-   filename="${CDUMP}.t${CYC}z.atmf${fcsthr}.nemsio" #Get filename change
+   filename3="${CDUMP}.t${CYC}z.atmf${fcsthrm3}.nemsio" #Get filename change
+   filename4="${CDUMP}.t${CYC}z.atmf${fcsthrm2}.nemsio" #Get filename change
+   filename5="${CDUMP}.t${CYC}z.atmf${fcsthrm1}.nemsio" #Get filename change
+   filename6="${CDUMP}.t${CYC}z.atmf${fcsthrm0}.nemsio" #Get filename change
+   filename7="${CDUMP}.t${CYC}z.atmf${fcsthrp1}.nemsio" #Get filename change
+   filename8="${CDUMP}.t${CYC}z.atmf${fcsthrp2}.nemsio" #Get filename change
+   filename9="${CDUMP}.t${CYC}z.atmf${fcsthrp3}.nemsio" #Get filename change
    cp $namelist ./simnml/namelist.atmf${fcsthr}
-   sed -i "s/@filename@/${filename}/g" ./simnml/namelist.atmf${fcsthr}
+   sed -i "s/@filename3@/${filename3}/g" ./simnml/namelist.atmf${fcsthr}
+   sed -i "s/@filename4@/${filename4}/g" ./simnml/namelist.atmf${fcsthr}
+   sed -i "s/@filename5@/${filename5}/g" ./simnml/namelist.atmf${fcsthr}
+   sed -i "s/@filename6@/${filename6}/g" ./simnml/namelist.atmf${fcsthr}
+   sed -i "s/@filename7@/${filename7}/g" ./simnml/namelist.atmf${fcsthr}
+   sed -i "s/@filename8@/${filename8}/g" ./simnml/namelist.atmf${fcsthr}
+   sed -i "s/@filename9@/${filename9}/g" ./simnml/namelist.atmf${fcsthr}
    sed -i "s/@CDUMP@/${CDUMP}/g"       ./simnml/namelist.atmf${fcsthr}
    sed -i "s/@PDY@/${PDY}/g"           ./simnml/namelist.atmf${fcsthr}
    sed -i "s/@CYC@/${CYC}/g"           ./simnml/namelist.atmf${fcsthr}
@@ -56,5 +82,5 @@ while [[ $fcsthr -le $FHMAX_GFS ]]; do
    sed -i "s#@work@#${work}#g"                            ./simsetup/setup_atmf${fcsthr}.ksh
    qsub ./simsetup/setup_atmf${fcsthr}.ksh
    #ksh ./simsetup/setup_atmf${fcsthr}.ksh
-   (( fcsthr=fcsthr+${FHOUT_GFS} ))
+   (( fcsthr=fcsthr+${FHOUT_GDAS} ))
 done
