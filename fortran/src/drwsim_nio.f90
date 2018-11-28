@@ -74,6 +74,7 @@ program drwsim
   logical   :: inside
   logical   :: bufrisopen
   logical   :: radar_location
+  logical   :: rite_bufr ! decides whether or not to write the bufr info for a particular radar
   integer   :: diagverbose
   integer(i_kind) :: center_t_window
 
@@ -523,28 +524,34 @@ program drwsim
 
         ! u
         call nemsio_readrecv(gfile(itime),'ugrd','mid layer',isig,u1d,iret=iret)
+        if(iret/=0) stop "ERROR: ugrd"
         ges_u(:,:,isig)=reshape(u1d(:),(/size(work,1),size(work,2)/))
 
         ! v
         call nemsio_readrecv(gfile(itime),'vgrd','mid layer',isig,v1d,iret=iret)
+        if(iret/=0) stop "ERROR: vgrd"
         ges_v(:,:,isig)=reshape(v1d(:),(/size(work,1),size(work,2)/))
 
         ! w
         call nemsio_readrecv(gfile(itime),'dzdt','mid layer',isig,w1d,iret=iret) !FV3=dzdt; NMMB=w_tot
+        if(iret/=0) stop "ERROR: dzdt"
         ges_w(:,:,isig)=reshape(w1d(:),(/size(work,1),size(work,2)/))
 
         ! dbz
         if(use_dbz) then !even if this is false, dbz will be initialized to missing everywhere 
-           call nemsio_readrecv(gfile(itime),'refl','mid layer',isig,dbz1d,iret=iret)
+           call nemsio_readrecv(gfile(itime),'dbz','mid layer',isig,dbz1d,iret=iret)
+           if(iret/=0) stop "ERROR: dbz"
            ges_dbz(:,:,isig)=reshape(dbz1d(:),(/size(work,1),size(work,2)/))
         endif
 
         ! q 
         call nemsio_readrecv(gfile(itime),'spfh','mid layer',isig,q1d,iret=iret)
+        if(iret/=0) stop "ERROR: spfh"
         ges_q(:,:,isig)=reshape(q1d(:),(/size(work,1),size(work,2)/))
 
         ! t => convert to tv later
         call nemsio_readrecv(gfile(itime),'tmp','mid layer',isig,t1d,iret=iret)
+        if(iret/=0) stop "ERROR: tmp"
         ges_t(:,:,isig)=reshape(t1d(:),(/size(work,1),size(work,2)/))
 
      end do
@@ -722,17 +729,19 @@ program drwsim
               selev0=sin(thistiltr)
               loopOVERazimuths: do iazm=azmspc,360,azmspc !360=>90;  90=>0; 180=>270;  270=>180
                  1000 format(a5,1x,i4,i2.2,i2.2,i2.2,&
-                          3x,a6,1x,a4,&
+                          3x,a6,1x,i3,a2,i3,1x,a4,&  !3x,a6,1x,a4,&
                           3x,a5,1x,i2,a2,i2,1x,a1,f4.1,a1,f4.1,a1,&
                           3x,a4,1x,i3,a4,&
-                          3x,a4,1x,i3,&
-                          3x,a6,1x,i2,a1,i5,a9)
-                 write(6,1000),"Date:",iadate(1),iadate(2),iadate(3),iadate(4),&
-                               "Radar:",adjustl(trim(dfid(irid))),&
-                               "Tilt:",itilt,"of",nelv,"(",tilts(itilt),"/",tilts(nelv),")",&
-                               "Azm:",iazm,"/360",&
-                               "VCP:",vcpid,&
-                               "ObRes:",azmspc,"x",gatespc,"[deg x m]"
+                          3x,a4,1x,i3,1x,i2,a7,i5,a3) !3x,a4,1x,i3,&
+                          !3x,a6,1x,i2,a1,i5,a9)
+                 if(iazm == 360) then !print last - less print should speed it up.
+                    write(6,1000),"Date:",iadate(1),iadate(2),iadate(3),iadate(4),&
+                                  "Radar:",irid,"of",numradars,adjustl(trim(dfid(irid))),&
+                                  "Tilt:",itilt,"of",nelv,"(",tilts(itilt),"/",tilts(nelv),")",&
+                                  "Azm:",iazm,"/360",&
+                                  "VCP:",vcpid,azmspc,"[deg] x",gatespc,"[m]" !&
+                                  !"ObRes:",azmspc,"x",gatespc,"[deg x m]"
+                 endif
                  thisazimuth=90.0_r_kind-float(iazm) ! 90-azm to be consistent with l2rwbufr
                  if(thisazimuth>=r360) thisazimuth=thisazimuth-r360
                  if(thisazimuth<zero) thisazimuth=thisazimuth+r360
@@ -922,6 +931,8 @@ program drwsim
            end if
 
            if(diagprint .and. diagverbose >= 1) write(6,*) "min/max drw: ",mindrwpol,maxdrwpol
+           if(mindrwpol <= maxdrwpol) rite_bufr=.true.
+           if(mindrwpol >  maxdrwpol) rite_bufr=.false.
 
 
            !-------------BUFFERIZE--------------------------------------------------!
@@ -929,106 +940,98 @@ program drwsim
            ! angle at a single time. We will put this information in its own bufr
            ! file hence this is contained within loopOVERtime.
            !
-           write(6,*)"Writing bufr file for ",trim(dfid(irid))
-           hdstr='SSTN CLON CLAT HSMSL HSALG ANEL YEAR MNTH DAYS HOUR MINU SECO QCRW ANAZ'
-           obstr='DIST125M DMVR DVSW'                     !NL2RW--level 2 radial wind.
-           open(41,file='l2rwbufr.table.csv')        
-           read(41,'(a10)') cdummy !read 1st line which is just a header.
-           do ii=0,23 !00z to 23z -- this starts on the second line of the file.
-              if(ii<iadate(4) .or. ii>iadate(4)) then
-                  read(41,'(a10)') cdummy
-              else if(ii==iadate(4)) then
-                  read(41,'(a10)') message_type
-                  message_type=trim(message_type) 
-              end if
-           end do
-           close(41)
-           if(diagprint .and. diagverbose >= 2) write(6,*) message_type
-           write(6,*) 'iadate',iadate
-           !call w3ai15(iadate(1),yyyy,1,4,'')
-           !call w3ai15(iadate(2),  mm,1,2,'')
-           !call w3ai15(iadate(3),  dd,1,2,'')
-           !call w3ai15(iadate(4),  hh,1,2,'')
-           !call w3ai15(iadate(5),  mn,1,2,'')
-           !cdate=trim(yyyy)//trim(mm)//trim(dd)//trim(hh)
-           subset=trim(adjustl(message_type))
-           chdr   = dfid(irid)       !SSTN - RADAR STATION IDENTIFIER -- uses same memory location as hdr(1)
-           hdr(2) = dflon(irid)      !CLON - LONGITUDE (COARSE ACCURACY)
-           hdr(3) = dflat(irid)      !CLAT - LATITUDE (COARSE ACCURACY)
-           hdr(4) = dfheight(irid)   !SELV - HEIGHT OF STATION
-           hdr(5) = 00 
-          !hdr(6) - tilt loop below.
-           hdr(7) = iadate(1)  !YEAR - YEAR
-           hdr(8) = iadate(2)  !MNTH - MONTH
-           hdr(9) = iadate(3)  !DAYS - DAY
-           hdr(10) = iadate(4) !HOUR - HOUR 
-           hdr(11)= 00               !MINU - MINUTE
-           hdr(12)= 00               !SECO - SECONDS
-           hdr(13)= 1                !QCRW - QUALITY MARK FOR WINDS ALONG RADIAL LINE
-          !hdr(14)- azm loop below.
-           bufrtilt: do itiltbufr=1,nelv
-              intdate=iadate(1)*1000000 + iadate(2)*10000 +iadate(3)*100 + iadate(4) ! int(yyyymmddhh)
-              hdr(6) = tilts(itiltbufr) 
+           ifrite_bufr: if(rite_bufr) then !if all obs are missing, skip this radar
+              write(6,*)"Writing bufr file for ",trim(dfid(irid))
+              hdstr='SSTN CLON CLAT HSMSL HSALG ANEL YEAR MNTH DAYS HOUR MINU SECO QCRW ANAZ'
+              obstr='DIST125M DMVR DVSW'                     !NL2RW--level 2 radial wind.
+              open(41,file='l2rwbufr.table.csv')        
+              read(41,'(a10)') cdummy !read 1st line which is just a header.
+              do ii=0,23 !00z to 23z -- this starts on the second line of the file.
+                 if(ii<iadate(4) .or. ii>iadate(4)) then
+                     read(41,'(a10)') cdummy
+                 else if(ii==iadate(4)) then
+                     read(41,'(a10)') message_type
+                     message_type=trim(message_type) 
+                 end if
+              end do
+              close(41)
+              if(diagprint .and. diagverbose >= 2) write(6,*) message_type
+              write(6,*) 'iadate',iadate
+              !call w3ai15(iadate(1),yyyy,1,4,'')
+              !call w3ai15(iadate(2),  mm,1,2,'')
+              !call w3ai15(iadate(3),  dd,1,2,'')
+              !call w3ai15(iadate(4),  hh,1,2,'')
+              !call w3ai15(iadate(5),  mn,1,2,'')
+              !cdate=trim(yyyy)//trim(mm)//trim(dd)//trim(hh)
+              subset=trim(adjustl(message_type))
+              chdr   = dfid(irid)       !SSTN - RADAR STATION IDENTIFIER -- uses same memory location as hdr(1)
+              hdr(2) = dflon(irid)      !CLON - LONGITUDE (COARSE ACCURACY)
+              hdr(3) = dflat(irid)      !CLAT - LATITUDE (COARSE ACCURACY)
+              hdr(4) = dfheight(irid)   !SELV - HEIGHT OF STATION
+              hdr(5) = 00 
+             !hdr(6) - tilt loop below.
+              hdr(7) = iadate(1)  !YEAR - YEAR
+              hdr(8) = iadate(2)  !MNTH - MONTH
+              hdr(9) = iadate(3)  !DAYS - DAY
+              hdr(10) = iadate(4) !HOUR - HOUR 
+              hdr(11)= 00               !MINU - MINUTE
+              hdr(12)= 00               !SECO - SECONDS
+              hdr(13)= 1                !QCRW - QUALITY MARK FOR WINDS ALONG RADIAL LINE
+             !hdr(14)- azm loop below.
+              bufrtilt: do itiltbufr=1,nelv
+                 intdate=iadate(1)*1000000 + iadate(2)*10000 +iadate(3)*100 + iadate(4) ! int(yyyymmddhh)
+                 hdr(6) = tilts(itiltbufr) 
 
-              if(.not.bufrisopen) then !open a new message for each station ID 
-                 write(6,*) "intdate",intdate
-                 write(6,*) "cdate",cdate
-                 bufrfilename='./simbufr/'//trim(cdate)//'_fv3.t'//trim(hh)//'z_drw.bufr'
-                 write(6,*) "bufr file name is:",bufrfilename
-                 open(unit=11,file='l2rwbufr.table',status='old',action='read',form='formatted')
+                 if(.not.bufrisopen) then !open a new message for each radar 
+                    write(6,*) "intdate",intdate
+                    write(6,*) "cdate",cdate
+                    bufrfilename='./simbufr/'//trim(cdate)//'_fv3.t'//trim(hh)//'z_drw.bufr'
+                    write(6,*) "bufr file name is:",bufrfilename
+                    open(unit=11,file='l2rwbufr.table',status='old',action='read',form='formatted')
 
-                 if(bufrcount == 0) then
-                    open(unit=10,file=trim(bufrfilename),status='unknown',action='write',form='unformatted')
-                    call openbf(10,'OUT',11)
-                 else ! APPEND MESSAGES AFTER THE FIRST IS WRITTEN
-                    open(unit=10,file=trim(bufrfilename),status='old',    action='write',form='unformatted')
-                    call openbf(10,'APN',11)
-                 endif
-                 bufrisopen=.true.
-                 bufrcount=bufrcount+1
-              end if
-
-              call openmb(10,trim(subset),intdate)
-              bufrazm: do iazmbufr=360/azimuths,360,360/azimuths
-                 iazmbufr90=90-iazmbufr
-                 if(iazmbufr90>=r360) iazmbufr90=iazmbufr90-r360
-                 if(iazmbufr90< zero) iazmbufr90=iazmbufr90+r360
-                 allocate(obs(3,numgates))
-                 obs=-999.0_r_kind ! Initialize as missing values
-                 hdr(14)=float(iazmbufr90)
-                 inumgates=0
-!                 bufrgate: do igatebufr=1,numgates
-!                    if(drwpol(itiltbufr,iazmbufr90,igatebufr) > -999.0_r_kind) then
-!                       inumgates=inumgates+1
-!                       obs(1,igatebufr) = igatebufr !DISTANCE (FROM ANTENNA TO GATE CENTER) IN UNITS OF 250M
-!                       obs(2,igatebufr) = drwpol(itiltbufr,iazmbufr90,igatebufr) !DOPPLER MEAN RADIAL VELOC 
-!                       obs(3,igatebufr) = 1.0_r_kind                       !DOPPLER VELOCITY SPECTRAL WIDTH
-!                    endif
-!                 end do bufrgate
-!                 ! encode radial velocity
-!                 call ufbint(10,hdr,14,1,iret,trim(hdstr))
-!                 call ufbint(10,obs, 3,inumgates,iret,trim(obstr)) !use inumgates instead of numgates for smaller obs files!
-!                 call writsb(10)
-                 bufrgate: do igatebufr=1,numgates
-                    obs(1,igatebufr) = igatebufr !DISTANCE (FROM ANTENNA TO GATE CENTER) IN UNITS OF 250M
-                    obs(2,igatebufr) = drwpol(itiltbufr,iazmbufr90,igatebufr) !DOPPLER MEAN RADIAL VELOC 
-                    obs(3,igatebufr) = 1.0_r_kind                       !DOPPLER VELOCITY SPECTRAL WIDTH
-                 end do bufrgate
-                 ! encode radial velocity
-                 call ufbint(10,hdr,14,1,iret,trim(hdstr))
-                 call ufbint(10,obs, 3,numgates,iret,trim(obstr))
-                 call writsb(10)
-                 deallocate(obs)
-              end do bufrazm
-              call closmg(10) ! close bufr message
-           end do bufrtilt
-           call closbf(10) ! close bufr file
-           close(10)       ! close bufr file
-           close(11)       ! close l2rwbufr.table
-           bufrisopen=.false.
+                    if(bufrcount == 0) then
+                       open(unit=10,file=trim(bufrfilename),status='unknown',action='write',form='unformatted')
+                       call openbf(10,'OUT',11)
+                    else ! APPEND MESSAGES AFTER THE FIRST IS WRITTEN
+                       open(unit=10,file=trim(bufrfilename),status='old',    action='write',form='unformatted')
+                       call openbf(10,'APN',11)
+                    endif
+                    bufrisopen=.true.
+                    bufrcount=bufrcount+1
+                 end if
+   
+                 call openmb(10,trim(subset),intdate)
+                 bufrazm: do iazmbufr=360/azimuths,360,360/azimuths
+                    iazmbufr90=90-iazmbufr
+                    if(iazmbufr90>=r360) iazmbufr90=iazmbufr90-r360
+                    if(iazmbufr90< zero) iazmbufr90=iazmbufr90+r360
+                    allocate(obs(3,numgates))
+                    obs=-999.0_r_kind ! Initialize as missing values
+                    hdr(14)=float(iazmbufr90)
+                    inumgates=0
+                    bufrgate: do igatebufr=1,numgates
+                       obs(1,igatebufr) = igatebufr !DISTANCE (FROM ANTENNA TO GATE CENTER) IN UNITS OF 250M
+                       obs(2,igatebufr) = drwpol(itiltbufr,iazmbufr90,igatebufr) !DOPPLER MEAN RADIAL VELOC 
+                       obs(3,igatebufr) = 1.0_r_kind                       !DOPPLER VELOCITY SPECTRAL WIDTH
+                    end do bufrgate
+                    ! encode radial velocity
+                    call ufbint(10,hdr,14,1,iret,trim(hdstr))
+                    call ufbint(10,obs, 3,numgates,iret,trim(obstr))
+                    call writsb(10)
+                    deallocate(obs)
+                 end do bufrazm
+                 call closmg(10) ! close bufr message
+              end do bufrtilt
+              call closbf(10) ! close bufr file
+              close(10)       ! close bufr file
+              close(11)       ! close l2rwbufr.table
+              bufrisopen=.false.
+              nradars=nradars+1
+           else  !ifrite_bufr
+              write(6,*)"Nothing to write for radar id: ",trim(dfid(irid))
+           end if ifrite_bufr
         end if ifKGRK
-        deallocate(drwpol)
-        nradars=nradars+1
+        deallocate(drwpol) !must always be deallocated before processing next radar
      end do loopOVERradars 
   end do loopOVERtime
 
