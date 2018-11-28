@@ -75,9 +75,10 @@ program drwsim
   logical   :: bufrisopen
   logical   :: radar_location
   integer   :: diagverbose
+  integer(i_kind) :: center_t_window
 
   !---------DEFAULT SETTINGS---------!
-  character(6)    :: datatype = 'NEMSIO'       ! Input data format for reading (NEMSIO or *NETCDF) *doesn't work
+  character(6)    :: datatype = 'NEMSIO'       ! Input data format for reading (NEMSIO)
   logical         :: l4denvar = .true.         ! simulate obs based on the needs of 3d/4d file needs
   integer(i_kind) :: maxobrange=250000_i_kind  ! Range (m) *within* which to use observations 
   integer(i_kind) :: minobrange=20000_i_kind   ! Range (m) *outside* of which
@@ -92,7 +93,8 @@ program drwsim
   integer(i_kind) :: vcpid=212_i_kind          ! default volume coverage pattern (VCP). 
   integer(i_kind) :: azimuths=360_i_kind       ! number of azimuths
   integer(i_kind) :: gatespc=250_i_kind        ! gate spacing (meters)
-  integer(i_kind) :: numgates=400_i_kind       ! number of gates
+  integer(i_kind) :: numgates=400_i_kind       ! number of gates (actual radar space)
+  integer(i_kind) :: inumgates=0_i_kind        ! number of gates (to be written when obs are missing minimizes the size of the drw files)
   integer(i_kind) :: ntime=1_i_kind            ! number of times from nc file
   integer(i_kind) :: nelv=1_i_kind             ! number of elvation tilts
   logical         :: use_dbz=.true.            ! check for dbz at obs location?
@@ -102,7 +104,7 @@ program drwsim
   logical         :: test_random_number_gen=.false. ! test the random number generator for simulated ob err. 
   !----------------------------------------------!
 
-  !---------NETCDF/NEMSIO VARS---------!
+  !----------------NEMSIO VARS-------------------!
   real(r_kind),allocatable  ::     ges_u(:,:,:) ! (nlon,nlat,nsig)
   real(r_kind),allocatable  ::     ges_v(:,:,:) ! (nlon,nlat,nsig)
   real(r_kind),allocatable  ::     ges_w(:,:,:) ! (nlon,nlat,nsig)
@@ -221,8 +223,6 @@ program drwsim
 
   namelist/simoberr/gen_ob_err,sigma_err,mean_err,check_err,rand_err,test_random_number_gen
 
-  namelist/nc/datapath,nesteddata3d,nesteddata2d,nestedgrid,ak_bk,nesteddatadbz
-
   namelist/nio/datapath,filename3,filename4,filename5,filename6,filename7,filename8,filename9
      
 !--------------------------------------------------------------------------------------!
@@ -237,6 +237,7 @@ program drwsim
   diagprint=.false.
   diagverbose=0
   if(l4denvar) ntime=7 !set here just in case it wasn't in namelist...
+  if(.not.l4denvar) ntime=1 !set here just in case it wasn't in namelist...
 
   !----READ NAMELIST----
   call get_command_argument(1,fcsthr)
@@ -247,7 +248,6 @@ program drwsim
   read(11,drw)
   read(11,simoberr)
   if(datatype == 'NEMSIO') read(11,nio)
-  if(datatype == 'NETCDF') read(11,nc )
   !----READ NAMELIST----
 
   !----RANDOM NUMBER GENERATOR
@@ -336,13 +336,18 @@ program drwsim
   numgates=int(maxobrange/gatespc) !calculate num gates based on namelist settings.
   allocate(filename(ntime))
   do itime=1,ntime
-     if(itime==1) filename(itime)=trim(datapath) // trim(filename3)
-     if(itime==2) filename(itime)=trim(datapath) // trim(filename4)
-     if(itime==3) filename(itime)=trim(datapath) // trim(filename5)
-     if(itime==4) filename(itime)=trim(datapath) // trim(filename6)
-     if(itime==5) filename(itime)=trim(datapath) // trim(filename7)
-     if(itime==6) filename(itime)=trim(datapath) // trim(filename8)
-     if(itime==7) filename(itime)=trim(datapath) // trim(filename9)
+     if(l4denvar) then
+        if(itime==1) filename(itime)=trim(datapath) // trim(filename3)
+        if(itime==2) filename(itime)=trim(datapath) // trim(filename4)
+        if(itime==3) filename(itime)=trim(datapath) // trim(filename5)
+        if(itime==4) filename(itime)=trim(datapath) // trim(filename6)
+        if(itime==5) filename(itime)=trim(datapath) // trim(filename7)
+        if(itime==6) filename(itime)=trim(datapath) // trim(filename8)
+        if(itime==7) filename(itime)=trim(datapath) // trim(filename9)
+    end if
+    if(.not.l4denvar) then
+        if(itime==1) filename(itime)=trim(datapath) // trim(filename6)
+    end if
   end do
 
   if(diagprint .and. diagverbose >= 1) then
@@ -430,6 +435,7 @@ program drwsim
   allocate(work(nlon,nlat))
   work    = zero
   if(l4denvar) ntime=7
+  if(.not.l4denvar) ntime=1 !set here just in case it wasn't in namelist...
   allocate(gfile(ntime))
 
   !   do itime=1,ntime
@@ -443,11 +449,12 @@ program drwsim
 
   bufrcount=0
   call nemsio_init(iret=iret)
-  call nemsio_open(gfile(4),filename(4),'READ',iret=iret)
-  call nemsio_getheadvar(gfile(4),'idate',idate,iret)
-  call nemsio_getheadvar(gfile(4),'nfhour',nfhour,iret)
+  center_t_window=(ntime-1)/2 + 1
+  call nemsio_open(gfile(center_t_window),filename(center_t_window),'READ',iret=iret)
+  call nemsio_getheadvar(gfile(center_t_window),'idate',idate,iret)
+  call nemsio_getheadvar(gfile(center_t_window),'nfhour',nfhour,iret)
   call newdate(idate,nfhour,iadate)
-  call nemsio_close(gfile(4))
+  call nemsio_close(gfile(center_t_window))
   call w3ai15(iadate(1),yyyy,1,4,'')
   call w3ai15(iadate(2),  mm,1,2,'')
   call w3ai15(iadate(3),  dd,1,2,'')
@@ -989,6 +996,19 @@ program drwsim
                  allocate(obs(3,numgates))
                  obs=-999.0_r_kind ! Initialize as missing values
                  hdr(14)=float(iazmbufr90)
+                 inumgates=0
+!                 bufrgate: do igatebufr=1,numgates
+!                    if(drwpol(itiltbufr,iazmbufr90,igatebufr) > -999.0_r_kind) then
+!                       inumgates=inumgates+1
+!                       obs(1,igatebufr) = igatebufr !DISTANCE (FROM ANTENNA TO GATE CENTER) IN UNITS OF 250M
+!                       obs(2,igatebufr) = drwpol(itiltbufr,iazmbufr90,igatebufr) !DOPPLER MEAN RADIAL VELOC 
+!                       obs(3,igatebufr) = 1.0_r_kind                       !DOPPLER VELOCITY SPECTRAL WIDTH
+!                    endif
+!                 end do bufrgate
+!                 ! encode radial velocity
+!                 call ufbint(10,hdr,14,1,iret,trim(hdstr))
+!                 call ufbint(10,obs, 3,inumgates,iret,trim(obstr)) !use inumgates instead of numgates for smaller obs files!
+!                 call writsb(10)
                  bufrgate: do igatebufr=1,numgates
                     obs(1,igatebufr) = igatebufr !DISTANCE (FROM ANTENNA TO GATE CENTER) IN UNITS OF 250M
                     obs(2,igatebufr) = drwpol(itiltbufr,iazmbufr90,igatebufr) !DOPPLER MEAN RADIAL VELOC 
