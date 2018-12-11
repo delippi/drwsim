@@ -97,6 +97,7 @@ program drwsim
   integer(i_kind) :: numgates=400_i_kind       ! number of gates (actual radar space)
   integer(i_kind) :: inumgates=0_i_kind        ! number of gates (to be written when obs are missing minimizes the size of the drw files)
   integer(i_kind) :: ntime=1_i_kind            ! number of times from nc file
+  character(20)   :: network="nexrad"          ! default station ID to use
   integer(i_kind) :: nelv=1_i_kind             ! number of elvation tilts
   logical         :: use_dbz=.true.            ! check for dbz at obs location?
   logical         :: gen_ob_err=.true.         ! logical for generating observation errors 
@@ -219,7 +220,7 @@ program drwsim
   real(r_kind) cmpr, x_v, rl_hm, fact, pw, tmp_K, tmp_C, prs_sv, prs_a, ehn_fct, prs_v
 
 
-  namelist/drw/l4denvar,datatype,ntime,staid,ithin,mintilt,maxtilt,maxobrange,minobrange,&
+  namelist/drw/l4denvar,datatype,ntime,network,staid,ithin,mintilt,maxtilt,maxobrange,minobrange,&
                azimuths,use_dbz,mindbz,gatespc,diagprint,diagverbose,radarcsv,vcpid
 
   namelist/simoberr/gen_ob_err,sigma_err,mean_err,check_err,rand_err,test_random_number_gen
@@ -985,7 +986,7 @@ program drwsim
                  if(.not.bufrisopen) then !open a new message for each radar 
                     write(6,*) "intdate",intdate
                     write(6,*) "cdate",cdate
-                    bufrfilename='./simbufr/'//trim(cdate)//'_fv3.t'//trim(hh)//'z_drw.bufr'
+                    bufrfilename='./simbufr/'//trim(adjustl(network))//'_'//trim(cdate)//'_fv3.t'//trim(hh)//'z_drw.bufr'
                     write(6,*) "bufr file name is:",bufrfilename
                     open(unit=11,file='l2rwbufr.table',status='old',action='read',form='formatted')
 

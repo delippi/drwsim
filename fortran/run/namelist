@@ -3,6 +3,7 @@ datatype='NEMSIO', !NEMSIO or NETCDF
 
 l4denvar=.true.,   ! logical for simulating obs for 4d ensemble var.
 ntime=7,           ! number of times in nc file (1 for 3d; 7 for 4d)
+network='nexrad',  ! nexrad, austrailia, europe, etc.
 staid='all',
 ithin=1,           ! Gate thinning frequency for RW obs (must be >=1).
                    ! 250-m * ithin = new gate spacing. (e.g., ithin=20 -> 5-km) 
@@ -50,7 +51,7 @@ check_err=.false.,  ! check the simulated error mean and standard deviation.
 
 &NIO
 !datapath='/scratch4/NCEPDEV/stmp3/Donald.E.Lippi/fv3gfs_dl2rw/@PDY@@CYC@/@EXP@/@CDUMP@.@PDY@/@CYC@/',
-datapath='/scratch4/NCEPDEV/stmp3/Donald.E.Lippi/fv3gfs_dl2rw/@PDY@@CYC@/@EXP@/',
+datapath='/scratch4/NCEPDEV/stmp3/Donald.E.Lippi/fv3gfs_dl2rw/@PDY@@CYC@/@EXP@/gfs.t00z.20180911.atm.nemsio/',
 filename3='@filename3@',
 filename4='@filename4@',
 filename5='@filename5@',
