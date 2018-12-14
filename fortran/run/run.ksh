@@ -29,8 +29,8 @@ ln -sf ../fix/l2rwbufr.table .
 # EXAMPLE:
 # FHMIN_GFS=6, FHMAX_GFS=18, FHOUT_GFS=1, FHOUT_GDAS=6
 # This example computes 3 simulated drw bufr files: one for 06z, 12z, and 18z.
-FHMIN_GFS=6   #start hour (6, 12, 18, 00). 
-FHMAX_GFS=18  #end   hour (6, 12, 18, 00). FHMIN = FHMAX if simulating obs for single cycle (1 bufr file).
+FHMIN_GFS=6   #start hour (6, 12, 18, 24, 30, 36, etc). 
+FHMAX_GFS=6  #end  hour (6, 12, 18, 24, 30, etc). FHMIN = FHMAX if simulating obs for single cyc (1 bufr file).
 FHOUT_GFS=1   #increment hour by (1; hourly 4DEnVar). Probably don't want to change this.
 FHOUT_GDAS=6  #increment for gdas analysis (6; analysis every 6 hours @ 00, 06, etc.). Don't change.
 fcsthr=$FHMIN_GFS
@@ -43,6 +43,8 @@ typeset -Z3 fcsthrp1
 typeset -Z3 fcsthrp2
 typeset -Z3 fcsthrp3
 
+#The next 4 lines are for the NATURE RUN. There is only one NATURE, the config used
+#forecast only (gfs), started at 00z on 20180911, and is named NATURE-SDATE-EDATE.
 CDUMP="gfs"
 CYC="00"
 PDY="20180911"

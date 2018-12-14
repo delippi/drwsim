@@ -38,10 +38,10 @@ def main():
    #date=2017080712      # date and time of the observations                    #
    #OBS_FILE='../run/2017101500_fhr06_fv3.t00z.drw.bufr'
    write_stations=False
-   STAID='KMHX'         # station id you want to plot.                         #
-   date=2018091100     # date and time of the observations                    #
+   STAID='KGRK'         # station id you want to plot.                         #
+   date=2018091106     # date and time of the observations                    #
    #OBS_FILE='../run/2018050306_fv3.t06z_drw.bufr'
-   OBS_FILE='../run/2018091400_fv3.t00z_drw.bufr'
+   OBS_FILE='../run/simbufr.save/2018091106_fv3.t06z_drw.bufr'
    #OBS_FILE='../run/rap.t05z.nexrad.tm00.bufr_d'
                         # tilt angle you want to plot.                         #
    #anel_list=[0.5]#,1,1.5,2,2.5,3,3.5,4,4.5,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]

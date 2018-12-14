@@ -12,11 +12,11 @@ export ndate=/home/Donald.E.Lippi/bin/ndate
 PDY=20180911
 CYC=06
 valtime=${PDY}${CYC}
-cycles=28 #how many cycles? 1=06z; 2=06z,12z; 3=06z,12z,18z; etc.
+cycles=1 #28 #how many cycles? 1=06z; 2=06z,12z; 3=06z,12z,18z; etc.
 network="nexrad"
 
 
-cycle=1
+cycle=0
 while [[ $cycle -le  $cycles ]]; do
    
    (( FH=6*$cycle ))
