@@ -14,6 +14,7 @@ maxobrange=100000, ! maximum distance from radar for observation creation [meter
 minobrange=0,      ! minimum distance from radar for observation creation [meters]
 azimuths=360.,     ! number of azms to create over a 360-deg circle.
 use_dbz=.true.,    ! use simulated dbz to determine where to simulate radial winds
+use_w=.true.,      ! use simulated vertical velocity and include w in observation operator.
 mindbz=-5.0,       ! minimum dbz threshold. set to -999 if you want radar winds everywhere.
 gatespc=250.,      ! level1 radial resolution [meters]
 
@@ -33,8 +34,6 @@ vcpid=212,
 !vcpid=998,
 /
 
-
-
 &simoberr
 gen_ob_err=.true.,  ! logical for generating observation error
 rand_err=.false.,   ! false for reproducible results. errors are still "random"
@@ -44,10 +43,6 @@ sigma_err=1.,       ! prescribed observation error standard deviation
 test_random_number_gen=.false., ! test the random number gerator for simulated ob error.
 check_err=.false.,  ! check the simulated error mean and standard deviation.
 /
-
-
-
-
 
 &NIO
 !datapath='/scratch4/NCEPDEV/stmp3/Donald.E.Lippi/fv3gfs_dl2rw/@PDY@@CYC@/@EXP@/@CDUMP@.@PDY@/@CYC@/',
@@ -59,21 +54,4 @@ filename6='@filename6@',
 filename7='@filename7@',
 filename8='@filename8@',
 filename9='@filename9@',
-/
-
-
-
-
-
-
-
-
-&NC
-datapath='/scratch4/NCEPDEV/meso/noscrub/Eric.Aligo/work_FV3_nest_C768_2017101500_GFDL_MP_REFL/',
-nesteddata3d='nggps3d_4xdaily.nest02.nc',
-nesteddata2d='nggps2d.nest02.nc',
-!nesteddatadbz='refl2D.nest02.nc',
-nesteddatadbz='refl3D.nest02.nc',
-nestedgrid='grid_spec.nest02.nc',
-ak_bk='RESTART/fv_core.res.nest02.nc',
 /

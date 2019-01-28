@@ -100,6 +100,7 @@ program drwsim
   character(20)   :: network="nexrad"          ! default station ID to use
   integer(i_kind) :: nelv=1_i_kind             ! number of elvation tilts
   logical         :: use_dbz=.true.            ! check for dbz at obs location?
+  logical         :: use_w=.false.             ! decided to use vertical velocity in observation operator. 
   logical         :: gen_ob_err=.true.         ! logical for generating observation errors 
   logical         :: check_err=.false.         ! check the simulated error mean and standard dev.
   logical         :: rand_err=.false.          ! .false. for reproducible results. errors are still "random" 
@@ -221,7 +222,7 @@ program drwsim
 
 
   namelist/drw/l4denvar,datatype,ntime,network,staid,ithin,mintilt,maxtilt,maxobrange,minobrange,&
-               azimuths,use_dbz,mindbz,gatespc,diagprint,diagverbose,radarcsv,vcpid
+               azimuths,use_dbz,mindbz,gatespc,diagprint,diagverbose,radarcsv,vcpid,use_w
 
   namelist/simoberr/gen_ob_err,sigma_err,mean_err,check_err,rand_err,test_random_number_gen
 
@@ -328,7 +329,7 @@ program drwsim
    else if(vcpid == 998 ) then ! my vcp for testing
      nelv=1_i_kind
      allocate(tilts(nelv))
-     tilts(1:nelv)=(/ real(r_kind) :: 1.0,2.0,5.0,10.0/)
+     tilts(1:nelv)=(/ real(r_kind) :: 0.5/)
    end if
   !----CREATE VOLUME COVERAGE PATTERN (VCP)----end
 
@@ -353,7 +354,7 @@ program drwsim
   end do
 
   if(diagprint .and. diagverbose >= 1) then
-     write(6,*) "----NC FILE SPECS--------"
+     write(6,*) "----NEMSIO FILE SPECS--------"
      write(6,*) "nlat",nlat
      write(6,*) "nlon",nlon
      write(6,*) "nsig",nsig
@@ -534,10 +535,12 @@ program drwsim
         ges_v(:,:,isig)=reshape(v1d(:),(/size(work,1),size(work,2)/))
 
         ! w
-        call nemsio_readrecv(gfile(itime),'dzdt','mid layer',isig,w1d,iret=iret) !FV3=dzdt; NMMB=w_tot
-        if(iret/=0) stop "ERROR: dzdt"
-        ges_w(:,:,isig)=reshape(w1d(:),(/size(work,1),size(work,2)/))
-
+        if(use_w) then
+           call nemsio_readrecv(gfile(itime),'dzdt','mid layer',isig,w1d,iret=iret) !FV3=dzdt; NMMB=w_tot
+           if(iret/=0) stop "ERROR: dzdt"
+           ges_w(:,:,isig)=reshape(w1d(:),(/size(work,1),size(work,2)/))
+        endif
+!
         ! dbz
         if(use_dbz) then !even if this is false, dbz will be initialized to missing everywhere 
            call nemsio_readrecv(gfile(itime),'dbz','mid layer',isig,dbz1d,iret=iret)
@@ -855,17 +858,19 @@ program drwsim
                           !--Interpolate guess wind to observation location                                  
                           call tintrp3(ges_u(:,:,:),ugesin,dlon,dlat,dpres)
                           call tintrp3(ges_v(:,:,:),vgesin,dlon,dlat,dpres)
-                          call tintrp3(ges_w(:,:,:),wgesin,dlon,dlat,dpres)
+                          if(use_w) call tintrp3(ges_w(:,:,:),wgesin,dlon,dlat,dpres)
 
                           !--Convert guess u,v,w wind components to radial value               
                           cosazm  = cos(thisazimuthr)! cos(azimuth angle)                       
                           sinazm  = sin(thisazimuthr)! sin(azimuth angle)                       
                           costilt = cos(thistiltr)   ! cos(tilt angle)
-                          sintilt = sin(thistiltr)   ! sin(tilt angle)
+                          if(use_w) sintilt = sin(thistiltr)   ! sin(tilt angle)
                           cosazm_costilt = cosazm*costilt
                           sinazm_costilt = sinazm*costilt
                           !-------------WIND FORWARD MODEL-----------------------------------------!
-                          drwpol(itilt,iazm,igate) = ugesin*cosazm_costilt +vgesin*sinazm_costilt +wgesin*sintilt
+                          !drwpol(itilt,iazm,igate) = ugesin*cosazm_costilt +vgesin*sinazm_costilt +wgesin*sintilt
+                          drwpol(itilt,iazm,igate) = ugesin*cosazm_costilt +vgesin*sinazm_costilt
+                          if(use_w) drwpol(itilt,iazm,igate) = drwpol(itilt,iazm,igate) +wgesin*sintilt
                           ndata=ndata+1
                           !-------------ADD OB ERR-------------------------------------------------!
                           if(gen_ob_err) then
