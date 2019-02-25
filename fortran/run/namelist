@@ -1,5 +1,5 @@
 &drw
-datatype='NEMSIO', !NEMSIO or NETCDF
+datatype='NEMSIO', !NEMSIO
 
 l4denvar=.true.,   ! logical for simulating obs for 4d ensemble var.
 ntime=7,           ! number of times in nc file (1 for 3d; 7 for 4d)
