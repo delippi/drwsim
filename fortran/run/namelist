@@ -40,14 +40,6 @@ check_err=.false.,  ! check the simulated error mean and standard deviation.
 /
 
 &NIO
-!datapath='/scratch4/NCEPDEV/stmp3/Donald.E.Lippi/fv3gfs_dl2rw/@PDY@@CYC@/@EXP@/@CDUMP@.@PDY@/@CYC@/',
-!datapath='/scratch4/NCEPDEV/stmp3/Donald.E.Lippi/fv3gfs_dl2rw/@PDY@@CYC@/@EXP@/gfs.t00z.20180911.atm.nemsio/',
 datapath='/scratch4/NCEPDEV/stmp3/Donald.E.Lippi/fv3gfs_dl2rw/@CDUMP@.t00z.@PDY@.atm.nemsio/'
-!filename3='@filename3@',
-!filename4='@filename4@',
-!filename5='@filename5@',
 filename6='@filename6@',
-!filename7='@filename7@',
-!filename8='@filename8@',
-!filename9='@filename9@',
 /
