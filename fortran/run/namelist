@@ -1,8 +1,8 @@
 &drw
 datatype='NEMSIO', !NEMSIO
 
-l4denvar=.true.,   ! logical for simulating obs for 4d ensemble var.
-ntime=7,           ! number of times in nc file (1 for 3d; 7 for 4d)
+l4denvar=.false.,   ! logical for simulating obs for 4d ensemble var.
+ntime=1,           ! number of times in nc file (1 for 3d; 7 for 4d)
 network='nexrad',  ! nexrad, austrailia, europe, etc.
 staid='all',
 ithin=1,           ! Gate thinning frequency for RW obs (must be >=1).
@@ -25,20 +25,15 @@ diagverbose=1,
 radarcsv='radar_sim_dev.csv',
 
 !from: WSR-88D Volume Coverage Pattern (VCP) Improvement Initiatives
-!vcpid=11,12,21,31,32,35,80,90,121,211,212,215,221,999
-!vcpid=215,
-!vcpid=211,
+!vcpid options: 11,12,21,31,32,35,80,90,121,211,212,215,221,998,999
 vcpid=212,
-!vcpid=221,
-!vcpid=999,
-!vcpid=998,
 /
 
 &simoberr
 gen_ob_err=.true.,  ! logical for generating observation error
 rand_err=.false.,   ! false for reproducible results. errors are still "random"
 mean_err=0.,        ! prescribed observation error mean
-sigma_err=1.,       ! prescribed observation error standard deviation
+sigma_err=1.4142,   ! prescribed observation error standard deviation (this number squared is variance).
 
 test_random_number_gen=.false., ! test the random number gerator for simulated ob error.
 check_err=.false.,  ! check the simulated error mean and standard deviation.
@@ -46,12 +41,13 @@ check_err=.false.,  ! check the simulated error mean and standard deviation.
 
 &NIO
 !datapath='/scratch4/NCEPDEV/stmp3/Donald.E.Lippi/fv3gfs_dl2rw/@PDY@@CYC@/@EXP@/@CDUMP@.@PDY@/@CYC@/',
-datapath='/scratch4/NCEPDEV/stmp3/Donald.E.Lippi/fv3gfs_dl2rw/@PDY@@CYC@/@EXP@/gfs.t00z.20180911.atm.nemsio/',
-filename3='@filename3@',
-filename4='@filename4@',
-filename5='@filename5@',
+!datapath='/scratch4/NCEPDEV/stmp3/Donald.E.Lippi/fv3gfs_dl2rw/@PDY@@CYC@/@EXP@/gfs.t00z.20180911.atm.nemsio/',
+datapath='/scratch4/NCEPDEV/stmp3/Donald.E.Lippi/fv3gfs_dl2rw/@CDUMP@.t00z.@PDY@.atm.nemsio/'
+!filename3='@filename3@',
+!filename4='@filename4@',
+!filename5='@filename5@',
 filename6='@filename6@',
-filename7='@filename7@',
-filename8='@filename8@',
-filename9='@filename9@',
+!filename7='@filename7@',
+!filename8='@filename8@',
+!filename9='@filename9@',
 /

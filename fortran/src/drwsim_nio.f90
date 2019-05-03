@@ -253,7 +253,7 @@ program drwsim
   if(datatype == 'NEMSIO') read(11,nio)
   !----READ NAMELIST----
 
-  !----RANDOM NUMBER GENERATOR
+  !----RANDOM NUMBER GENERATOR (Box-Muller transform)
   if(test_random_number_gen) then
      oberr=0.0_r_kind
      sum_err=0.0_r_kind
@@ -330,6 +330,11 @@ program drwsim
      nelv=1_i_kind
      allocate(tilts(nelv))
      tilts(1:nelv)=(/ real(r_kind) :: 0.5/)
+
+   else if(vcpid == 997 ) then ! my vcp for testing
+     nelv=10_i_kind
+     allocate(tilts(nelv))
+     tilts(1:nelv)=(/ real(r_kind) :: 0.2,1.0,2.0,3.0,4.5,6.0,9.0,12.0,16.0,21.0/)
    end if
   !----CREATE VOLUME COVERAGE PATTERN (VCP)----end
 

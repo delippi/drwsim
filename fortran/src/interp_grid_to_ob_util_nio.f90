@@ -9,14 +9,18 @@ module interp_util
   implicit none
  
   real(r_kind),parameter:: r1_5=1.5_r_kind
+! NMMB
 !  integer(i_kind),parameter :: nlon=1728_i_kind	
 !  integer(i_kind),parameter :: nlat=1440_i_kind
 !  integer(i_kind),parameter :: nsig=63_i_kind  
+! FV3GFS - C768
   integer(i_kind),parameter :: nlon=3072_i_kind
   integer(i_kind),parameter :: nlat=1536_i_kind
+  integer(i_kind),parameter :: nsig=64_i_kind  
+! FV3GFS - C384
 !  integer(i_kind),parameter :: nlon=1536_i_kind
 !  integer(i_kind),parameter :: nlat=768_i_kind
-  integer(i_kind),parameter :: nsig=64_i_kind  
+!  integer(i_kind),parameter :: nsig=64_i_kind  
   !integer(i_kind),parameter :: ntime=1_i_kind  
   integer(i_kind) :: nxtilde,nytilde
   real(r_kind)    :: rlambda0,pihalf,sign_pole,atilde_x,atilde_y,btilde_x,btilde_y
