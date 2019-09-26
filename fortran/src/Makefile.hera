@@ -1,0 +1,60 @@
+BACIO_VER =2.0.2
+BUFR_VER  =11.3.0
+NEMSIO_VER=2.2.4
+SFCIO_VER =1.1.0
+SIGIO_VER =2.1.0
+SP_VER    =2.0.2
+W3EMC_VER =2.3.0
+W3NCO_VER =2.0.6
+
+CORELIB=/scratch2/NCEPDEV/nwprod/NCEPLIBS/compilers/intel/18.0.5.274
+
+INCsfcio  =$(CORELIB)/include/sfcio_v$(SFCIO_VER)_4
+INCsigio  =$(CORELIB)/include/sigio_v$(SIGIO_VER)_4
+INCnemsio =$(CORELIB)/include/nemsio_v$(NEMSIO_VER)
+INCw3     =$(CORELIB)/include/w3emv_v$(W3EMC_VER)_d
+
+BACIO_LIB4=$(CORELIB)/lib/libbacio_v$(BACIO_VER)_4.a
+BUFR_LIBd =$(CORELIB)/lib/libbufr_v$(BUFR_VER)_d_64.a
+NEMSIO_LIB=$(CORELIB)/lib/libnemsio_v$(NEMSIO_VER).a
+SFCIO_LIB =$(CORELIB)/lib/libsfcio_v$(SFCIO_VER)_4.a
+SIGIO_LIB =$(CORELIB)/lib/libsigio_v$(SIGIO_VER)_4.a
+SP_LIBd   =$(CORELIB)/lib/libsp_v$(SP_VER)_d.a
+W3EMC_LIBd=$(CORELIB)/lib/libw3emc_v$(W3EMC_VER)_d.a
+W3NCO_LIBd=$(CORELIB)/lib/libw3nco_v$(W3NCO_VER)_d.a
+
+INCnetcdf  = ${NETCDF}/include
+LIBnetcdf  = -L${NETCDF}/lib -lnetcdf
+
+
+#CF	= mpif90 -f90=ifort -warn unused -I $(INCsfcio) -I $(INCsigio) -I $(INCnemsio) 
+CF	= mpif90 -f90=ifort              -I $(INCsfcio) -I $(INCsigio) -I $(INCnemsio) \
+	-I $(INCnetcdf) -I $(INCw3) -O3 -traceback -convert big_endian -assume byterecl \
+	-g -fp-model source 
+
+CFFLAG	= $(CF) 
+
+
+LIBS	= $(SP_LIBd) $(NEMSIO_LIB) $(BACIO_LIB4) $(SIGIO_LIB) \
+          $(SFCIO_LIB) $(BUFR_LIBd) $(W3NCO_LIBd) $(W3EMC_LIBd) $(LIBnetcdf)
+
+execname= drwsim.x
+
+drwsim.x: kinds.o constants.o grdcrd.o interp_grid_to_ob_util_nio.o drwsim_nio.f90
+	$(CFFLAG) kinds.o constants.o grdcrd.o interp_grid_to_ob_util_nio.o -o $(execname) drwsim_nio.f90 $(LIBS)
+
+interp_grid_to_ob_util_nio.o: kinds.o constants.o grdcrd.o interp_grid_to_ob_util_nio.f90
+	$(CF) -c interp_grid_to_ob_util_nio.f90 #$(LIBS)
+
+grdcrd.o: kinds.o constants.o grdcrd.f90
+	$(CF) -c grdcrd.f90
+
+constants.o: kinds.o constants.f90
+	$(CF) -c constants.f90
+
+kinds.o: kinds.f90
+	$(CF) -c kinds.f90
+
+clean:
+	rm -f *.o *.x *.mod
+

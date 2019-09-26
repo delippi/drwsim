@@ -62,6 +62,9 @@ program drwsim
   real(r_kind) :: sin2,termg,termr,termrg,dpres,zob
   real(r_kind) :: b,c,ha,epsh,h,aactual,a43,thistilt
   real(r_kind) :: thistiltr,selev0,celev0,thisrange,thishgt
+
+  real(r_kind) :: this_stalat,this_stalon,this_stahgt,thistime,thisvr,corrected_azimuth,thiserr,corrected_tilt
+
   real(r_kind) :: celev,selev,gamma,thisazimuthr,thisazimuth,rlon0,rlat0,stahgt, &
                   clat0,slat0,dlat,dlon,thislon,thislat, &
                   rlonloc,rlatloc,rlonglob,rlatglob,rad_per_meter!, &
@@ -74,12 +77,13 @@ program drwsim
   logical   :: inside
   logical   :: bufrisopen
   logical   :: radar_location
-  logical   :: rite_bufr ! decides whether or not to write the bufr info for a particular radar
+  logical   :: rite_bufr ! decides whether or not to write the obs info for a particular radar
   integer   :: diagverbose
   integer(i_kind) :: center_t_window
 
   !---------DEFAULT SETTINGS---------!
-  character(6)    :: datatype = 'NEMSIO'       ! Input data format for reading (NEMSIO)
+  character(6)    :: data_in_type = 'NEMSIO'   ! Input data format for reading (NEMSIO)
+  character(6)    :: data_out_type= 'bufr'     ! Output data format for writing (bufr/f90) 
   logical         :: l4denvar = .true.         ! simulate obs based on the needs of 3d/4d file needs
   integer(i_kind) :: maxobrange=250000_i_kind  ! Range (m) *within* which to use observations 
   integer(i_kind) :: minobrange=20000_i_kind   ! Range (m) *outside* of which
@@ -87,7 +91,6 @@ program drwsim
   real(r_kind)    :: maxtilt=5.5_r_kind        ! Do no use tilt(elevation) angles (deg) <= this number
   real(i_kind)    :: sigma_err=2.0_r_kind      ! observational error standard deviation 
   real(i_kind)    :: mean_err=2.0_r_kind       ! observational error mean 
-  integer(i_kind) :: ithin=4_i_kind            ! Gates to skip for ob thinning (must be >=1)
   character(4)    :: staid='KOUN'              ! default station ID to use
   real(r_kind)    :: mindbz=-999_r_kind        ! minimum dbz value needed at a location to create a drw
   real(r_kind),allocatable :: tilts(:)
@@ -172,6 +175,7 @@ program drwsim
   integer(i_kind) :: igatebufr
   integer(i_kind) :: iazmbufr90
   character(80)   :: bufrfilename
+  character(80)   :: f90filename
   character(80)   :: hdstr
   character(80)   :: obstr
   real(r_kind)  :: hdr(14)
@@ -179,6 +183,7 @@ program drwsim
   character(8) :: chdr
   character(8) :: subset
   equivalence (hdr(1),chdr)
+  logical :: file_exists
 
   !---------L2RWBUFR CSV TABLE VARS------------!
   character(10) :: message_type
@@ -202,13 +207,12 @@ program drwsim
   character(len=180)  :: ak_bk
   character(len=180)  :: radarcsv
   character(len=180)  :: nesteddatadbz
-  character(len=180)  :: filename3
-  character(len=180)  :: filename4
-  character(len=180)  :: filename5
-  character(len=180)  :: filename6
-  character(len=180)  :: filename7
-  character(len=180)  :: filename8
-  character(len=180)  :: filename9
+  character(len=180)  :: filename_tm05
+  character(len=180)  :: filename_tm04
+  character(len=180)  :: filename_tm03
+  character(len=180)  :: filename_tm02
+  character(len=180)  :: filename_tm01
+  character(len=180)  :: filename_tm00
   character(len=180),allocatable,dimension(:)  :: filename
   character(len=180)  :: namelist_atmfxxx
   character(len=180)  :: fcsthr
@@ -221,12 +225,13 @@ program drwsim
   real(r_kind) cmpr, x_v, rl_hm, fact, pw, tmp_K, tmp_C, prs_sv, prs_a, ehn_fct, prs_v
 
 
-  namelist/drw/l4denvar,datatype,ntime,network,staid,ithin,mintilt,maxtilt,maxobrange,minobrange,&
-               azimuths,use_dbz,mindbz,gatespc,diagprint,diagverbose,radarcsv,vcpid,use_w
+  namelist/drw/l4denvar,data_in_type,data_out_type,ntime,network,staid,mintilt,maxtilt,&
+               maxobrange,minobrange,azimuths,use_dbz,mindbz,gatespc,diagprint,diagverbose,&
+               radarcsv,vcpid,use_w
 
   namelist/simoberr/gen_ob_err,sigma_err,mean_err,check_err,rand_err,test_random_number_gen
 
-  namelist/nio/datapath,filename3,filename4,filename5,filename6,filename7,filename8,filename9
+  namelist/nio/datapath,filename_tm05,filename_tm04,filename_tm03,filename_tm02,filename_tm01,filename_tm00
      
 !--------------------------------------------------------------------------------------!
 !                            END OF ALL DECLARATIONS
@@ -250,7 +255,7 @@ program drwsim
   open(11,file=namelist_atmfxxx)
   read(11,drw)
   read(11,simoberr)
-  if(datatype == 'NEMSIO') read(11,nio)
+  if(data_in_type == 'NEMSIO') read(11,nio)
   !----READ NAMELIST----
 
   !----RANDOM NUMBER GENERATOR (Box-Muller transform)
@@ -339,22 +344,21 @@ program drwsim
   !----CREATE VOLUME COVERAGE PATTERN (VCP)----end
 
 
-  gatespc=gatespc*ithin
+  gatespc=gatespc
   azmspc=360/azimuths
   numgates=int(maxobrange/gatespc) !calculate num gates based on namelist settings.
   allocate(filename(ntime))
   do itime=1,ntime
      if(l4denvar) then
-        if(itime==1) filename(itime)=trim(datapath) // trim(filename3)
-        if(itime==2) filename(itime)=trim(datapath) // trim(filename4)
-        if(itime==3) filename(itime)=trim(datapath) // trim(filename5)
-        if(itime==4) filename(itime)=trim(datapath) // trim(filename6)
-        if(itime==5) filename(itime)=trim(datapath) // trim(filename7)
-        if(itime==6) filename(itime)=trim(datapath) // trim(filename8)
-        if(itime==7) filename(itime)=trim(datapath) // trim(filename9)
+        if(itime==1) filename(itime)=trim(datapath) // trim(filename_tm00)
+        if(itime==2) filename(itime)=trim(datapath) // trim(filename_tm01)
+        if(itime==3) filename(itime)=trim(datapath) // trim(filename_tm02)
+        if(itime==4) filename(itime)=trim(datapath) // trim(filename_tm03)
+        if(itime==5) filename(itime)=trim(datapath) // trim(filename_tm04)
+        if(itime==6) filename(itime)=trim(datapath) // trim(filename_tm05)
     end if
     if(.not.l4denvar) then
-        if(itime==1) filename(itime)=trim(datapath) // trim(filename6)
+        if(itime==1) filename(itime)=trim(datapath) // trim(filename_tm00)
     end if
   end do
 
@@ -374,7 +378,6 @@ program drwsim
      write(6,*) "tilts       ",tilts
      write(6,*) "azimuths    ",azimuths
      write(6,*) "numgates    ",numgates
-     write(6,*) "ithin       ",ithin
      write(6,*) "gatespc     ",gatespc
      write(6,*) "maxobrange  ",maxobrange
      write(6,*) "minobrange  ",minobrange
@@ -397,9 +400,6 @@ program drwsim
 
   if (minobrange >= maxobrange) then
      STOP 'MINIMUM OB RANGE >= MAXIMUM OB RANGE. PROGRAM STOPPING NOW drwsim.f90'
-  end if
-  if (ithin < 1) then
-     STOP 'ithin MUST BE >=1! CHECK NAMELIST AND RESET.'
   end if
 
 
@@ -438,11 +438,11 @@ program drwsim
   write(6,*) "Done: Reading Global Radar List"
 
 !------ OPEN NEMSIO FILE FOR READING -----------------------
-!  if(datatype=='NEMSIO') then
+!  if(data_in_type=='NEMSIO') then
   write(6,*) 'Open and Read NEMSIO files'
   allocate(work(nlon,nlat))
   work    = zero
-  if(l4denvar) ntime=7
+  if(l4denvar) ntime=6
   if(.not.l4denvar) ntime=1 !set here just in case it wasn't in namelist...
   allocate(gfile(ntime))
 
@@ -457,7 +457,8 @@ program drwsim
 
   bufrcount=0
   call nemsio_init(iret=iret)
-  center_t_window=(ntime-1)/2 + 1
+  !center_t_window=(ntime-1)/2 + 1
+  center_t_window=1
   call nemsio_open(gfile(center_t_window),filename(center_t_window),'READ',iret=iret)
   call nemsio_getheadvar(gfile(center_t_window),'idate',idate,iret)
   call nemsio_getheadvar(gfile(center_t_window),'nfhour',nfhour,iret)
@@ -756,12 +757,12 @@ program drwsim
                  if(thisazimuth<zero) thisazimuth=thisazimuth+r360
                  thisazimuthr=thisazimuth*deg2rad
                  loopOVERgates: do igate=1,numgates     
+                    thisrange=igate*gatespc
                     inside=.false. ! is our ob location inside the bounds? preset to false, then check.
-                    if(igate*gatespc >= minobrange .and. igate*gatespc <= maxobrange) inside=.true.
+                    if(thisrange >= minobrange .and. thisrange <= maxobrange) inside=.true.
                     ifinside: if(inside) then
 ! read_l2bufr_mod.f90 @ 686 subroutine radar_bufr_read_all
                        !--Find observation height using method from read_l2bufr_mod.f90 
-                       thisrange=(igate)*gatespc
                        aactual=(rearth+stahgt)
                        a43=aactual*four_thirds
                        b   = thisrange*(thisrange+two*aactual*selev0)
@@ -921,11 +922,39 @@ program drwsim
                              end if
                           end if 
 
+                          ifrite_f90: if(trim(adjustl(data_out_type)) == "f90") then ! we will write f90 file.
+                             inquire(file=f90filename,exist=file_exists)
+                             if(.not. file_exists) then !file is not yet open
+                                f90filename='./simf90/'//trim(adjustl(network))//&
+                                            '_'//trim(cdate)//'_fv3.t'//trim(hh)//'z_drw.bin'
+                                open(60,file=trim(adjustl(f90filename)),form='unformatted',iostat=iret)
+                             end if
+                             if(file_exists) then !file is already open.
+                                !conversions to GSI "parlance"
+                                this_stalat       = rlat0*rad2deg !dflat(irid)
+                                this_stalon       = rlat0*rad2deg !dflon(irid)
+                                this_stahgt       = stahgt
+                                thistime          = 0
+                                thislat           = thislat
+                                thislon           = thislon
+                                thishgt           = thishgt
+                                thisvr            = drwpol(itilt,iazm,igate)  
+                                corrected_azimuth = thisazimuth 
+                                thiserr           = oberr
+                                corrected_tilt    = thistilt
+                                gamma             = gamma
+                                write(60) this_staid,this_stalat,this_stalon,this_stahgt,&
+                                          thistime,thislat,thislon,thishgt,thisvr,corrected_azimuth,&
+                                          thiserr,corrected_tilt,gamma
+                             end if
+                          end if ifrite_f90
+
                        end if dbzCheck
                     end if ifinside
                  end do loopOVERgates
               end do loopOVERazimuths
            end do loopOVERtilts
+           if(trim(adjustl(data_out_type)) == "f90") then; close(60); end if
 
            if(check_err) then
              mu = sum_err / ndata
@@ -951,7 +980,7 @@ program drwsim
            ! angle at a single time. We will put this information in its own bufr
            ! file hence this is contained within loopOVERtime.
            !
-           ifrite_bufr: if(rite_bufr) then !if all obs are missing, skip this radar
+           ifrite_bufr: if(trim(adjustl(data_out_type)) == "bufr" .and. rite_bufr) then !we will write a bufr.
               write(6,*)"Writing bufr file for ",trim(dfid(irid))
               hdstr='SSTN CLON CLAT HSMSL HSALG ANEL YEAR MNTH DAYS HOUR MINU SECO QCRW ANAZ'
               obstr='DIST125M DMVR DVSW'                     !NL2RW--level 2 radial wind.
@@ -984,10 +1013,10 @@ program drwsim
               hdr(7) = iadate(1)  !YEAR - YEAR
               hdr(8) = iadate(2)  !MNTH - MONTH
               hdr(9) = iadate(3)  !DAYS - DAY
-              hdr(10) = iadate(4) !HOUR - HOUR 
-              hdr(11)= 00               !MINU - MINUTE
-              hdr(12)= 00               !SECO - SECONDS
-              hdr(13)= 1                !QCRW - QUALITY MARK FOR WINDS ALONG RADIAL LINE
+              hdr(10)= iadate(4)  !HOUR - HOUR 
+              hdr(11)= 00         !MINU - MINUTE
+              hdr(12)= 00         !SECO - SECONDS
+              hdr(13)= 1          !QCRW - QUALITY MARK FOR WINDS ALONG RADIAL LINE
              !hdr(14)- azm loop below.
               bufrtilt: do itiltbufr=1,nelv
                  intdate=iadate(1)*1000000 + iadate(2)*10000 +iadate(3)*100 + iadate(4) ! int(yyyymmddhh)
@@ -1038,8 +1067,6 @@ program drwsim
               close(11)       ! close l2rwbufr.table
               bufrisopen=.false.
               nradars=nradars+1
-           else  !ifrite_bufr
-              write(6,*)"Nothing to write for radar id: ",trim(dfid(irid))
            end if ifrite_bufr
         end if ifKGRK
         deallocate(drwpol) !must always be deallocated before processing next radar
