@@ -5,7 +5,7 @@
 #SBATCH --partition=service 
 #SBATCH -q batch
 #SBATCH -A fv3-cpu
-#SBATCH -o ./getNatureFiles.log
+#SBATCH -o getNatureFiles168-171_0930.log 
 
 
 instructions='''Before running this script you should have:

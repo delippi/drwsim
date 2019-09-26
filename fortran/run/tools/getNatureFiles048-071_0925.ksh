@@ -5,7 +5,7 @@
 #SBATCH --partition=service 
 #SBATCH -q batch
 #SBATCH -A fv3-cpu
-#SBATCH -o ./getNatureFiles.log
+#SBATCH -o getNatureFiles048-071_0925.log 
 
 
 instructions='''Before running this script you should have:
@@ -39,7 +39,7 @@ gfs.t00z.20181007.master.grb2.tar.idx   gfs.t00z.20181007.sfc.nemsio.tar.idx
 
 #This script downloads the known truth model output to generate simulated obs from.
 
-valtime=2018093000 #20180923-20180930
+valtime=2018092500 #20180923-20180930
 pdy=`echo $valtime | cut -c 1-8`
 cyc=`echo $valtime | cut -c 9-10`
 year=`echo $valtime | cut -c 1-4`

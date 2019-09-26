@@ -1,13 +1,11 @@
 #!/bin/ksh
-#PBS -N drwsim.@atmfxxx@
-##PBS -l walltime=8:00:00
-#PBS -l walltime=0:45:00
-#PBS -l nodes=1:ppn=20
-##PBS -l vmem=30G
-#PBS -q batch 
-#PBS -A fv3-cpu
-#PBS -o ./simlog/log_drwsim.@atmfxxx@.out
-#PBS -j oe
+#SBATCH -J drwsim.@atmfxxx@
+#SBATCH -t 0:20:00
+#SBATCH -n 1
+#SBATCH -N 1
+#SBATCH -q batch 
+#SBATCH -A fv3-cpu
+#SBATCH -o ./simlog/log_drwsim.@atmfxxx@.out
 
 work="@work@"
 cd $work
